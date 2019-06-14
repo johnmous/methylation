@@ -16,14 +16,13 @@ import re
 ## @click.option('--outpath', required = True, help='Path to place the output')
 
 
-def methylPatterns(methylation, outpath):
+def methylPatterns(methylation, outpath, methylThr):
     """
     Separate reads in three categories: Methylated , unmethylated, partially methylated.
     Count each category.
     :param methylation: pandas df with columns "Read", "MethylStatus", "Chr", "Pos", "Zz"
-    :param ampltable:
     :param outpath:
-    :return: A Series with counts of the three methylation categories per amplicon
+    :return: A Series with counts of the three methylation categories
     """
 
     ## if records for amplicon, proceeed
@@ -59,15 +58,12 @@ def methylPatterns(methylation, outpath):
         collCountPattern["unmethStatesCount"] = unmethStates
         collCountPattern["notApplCount"] = notAppl
         collCountPattern.to_csv(outpath + "/test.tsv", sep ="\t", header=True)
-        countMethClass = countPatterns(collCountPattern, totalMethPos, readCount, 3, posToKeepCount)
+        countMethClass = countPatterns(collCountPattern, totalMethPos, readCount, methylThr, posToKeepCount)
         return countMethClass
 
 def countStates(methMatrix, methState):
     """
-    Count the number of methylation states in the table per pattern (row):
-    methylated (+),
-    unmethylated (-),
-    not applicable (*)
+    Count the occurence of strings (denoting methylations tates) in the table per pattern (row):
     Returns a Series with length equal to matrix rows
     """
     patterns = methMatrix.drop(labels="counts", axis=1)
@@ -76,7 +72,7 @@ def countStates(methMatrix, methState):
 
 def countPatterns(methMatrix, totalMethPos, readCount, stateThr, posToKeepCount):
     """
-    Split the methylation patterns in 3 categories:
+    Splits the methylation patterns in 3 categories:
     Mostly methylated (meth > stateThr)
     Mostly unMethylated (meth < stateThr)
     Else patriallyMeth
@@ -98,16 +94,6 @@ def countPatterns(methMatrix, totalMethPos, readCount, stateThr, posToKeepCount)
                                       "patriallyMeth_reads",
                                        "partialPcnt"])
     return countMethClass
-
-def sampleName(file):
-    """
-    Get sample name out of the bismakr file name.
-    Expects full path of a file, as named by bismark
-    """
-    str_search = re.search('.+/CpG_OB_(.+)_bismark.+', file)
-    sampleName = str_search.group(1)
-    return sampleName
-
 
 
 if __name__ == "__main__":

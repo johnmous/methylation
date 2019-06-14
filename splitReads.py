@@ -1,4 +1,3 @@
-#!/exports/sasc/ioannis/miniconda3/envs/snake/bin/python
 ## Title: Group reads based on heterozygous SNPs locations. Each group of reads will be placed in a separate BAM file
 ## Author: I. Moustakas, i.moustakas@lumc.nl
 
@@ -6,24 +5,32 @@ import click
 import pysam
 import re
 import os
-import subprocess
 import pandas as pd
 from methylationPattern import methylPatterns
 
 @click.command()
-@click.option('--samfile', required = True, help='Alignment file')
-@click.option('--location', required = True, help='Allele location to split on, formatted as chrom:pos')
-@click.option('--thr', required = True, help='Threshold for allele frequency bellow which this allele is ignored')
-@click.option('--outpath', required = True, help='Path to place the output')
-@click.option('--cpgfile', required = True, help = "CpG file from bismark (CpG_OB_*)")
-@click.option('--ampltable', required = True, help = "Tab separated file with amplicon locations") ##TODO: specify table format
-def perSample(samfile, location, thr, outpath, cpgfile, ampltable):
-    ## Get command line arguments
-    chrom, pos = location.split(":")
-    pos = int(pos) -1
+@click.option('--samfile', required=True, help='Alignment file')
+## @click.option('--location', required = True, help='Allele location to split on, formatted as chrom:pos')
+@click.option('--thr', required=True, help='Threshold for allele frequency bellow which an allele is ignored')
+@click.option('--outpath', required=True, help='Path to place the output')
+@click.option('--cpgfile', required=True, help="CpG file from bismark (CpG_OB_*)")
+@click.option('--ampltable', required=True, help="Tab separated file with amplicon locations") ##TODO: specify table format
+def perSample(samfile, thr, outpath, cpgfile, ampltable):
+    """
+    For each sample, accepts an alignment file,cd  a methylation call file and list of amplicons
+    For each amplicon, calculate a table with methylation pattern counts
+    :param samfiles:
+    :param location:
+    :param thr:
+    :param outpath:
+    :param cpgfile:
+    :param ampltable:
+    :return: {amplicon => methylation counts DF}
+    """
 
-    ## Load the amplicon table
-    amplicons = pd.read_csv(ampltable, sep="\t")
+    ## Create output directory
+    if not os.path.exists(outpath):
+        os.makedirs(outpath)
 
     ## Load methylation call data. Forward and reverse strand are in two separate files (OB and OT).
     ## Combine them in one df. If file does not exist, create empty DF
@@ -40,23 +47,51 @@ def perSample(samfile, location, thr, outpath, cpgfile, ampltable):
 
     ## Read alignment file, create a dict of allele to records list
     samFile = pysam.AlignmentFile(samfile, 'rb')
-    alleleToReadRecord = baseToReads(samFile, chrom, pos)
-    if not os.path.exists(outpath):
-        os.makedirs(outpath)
 
-    allRecordCounts = len([record for listRecords in alleleToReadRecord.values() for record in listRecords])
+    #amplInfo = getAmplicon(ampltable, methylation)
+    amplList = readAmplicon(ampltable)
+    sampleNm = sampleName(cpgfile)
 
-    ## Remove alleles with read count below threshold
-    recordsToKeep = {}
-    for allele, records in alleleToReadRecord.items():
-        if len(records) > float(thr)*allRecordCounts:
-            recordsToKeep[allele] = records
+    ampliconToDF = {}
 
-    amplToMeth = getAmplicon(ampltable, methylation)
+    for amplicon in amplList:
+        location = amplicon.location
+        start = amplicon.start
+        end = amplicon.end
+        methylationThr = amplicon.methylThr
+        ampliconName = amplicon.name
 
-    for name, methylation in amplToMeth.items():
-        counts = phaseReads(recordsToKeep, methylation, outpath)
-        print(counts)
+        chrom, pos = location.split(":")
+        pos = int(pos) - 1
+        ## Extract the methylation table that concerns this amplicon region
+        ampliconMeth = methylation.loc[(methylation["Chr"] == chrom) & (methylation["Pos"] >= start) & (methylation["Pos"] <= end)]
+
+        ## Create a dict of allele to records list from the alignment file
+        alleleToReadRecord = baseToReads(samFile, chrom, pos)
+        allRecords = [record for listRecords in alleleToReadRecord.values() for record in listRecords]
+        allRecordCounts = len(allRecords)
+
+        ## Remove alleles with read count below threshold
+        recordsToKeep = {}
+        for allele, records in alleleToReadRecord.items():
+            if len(records) > float(thr) * allRecordCounts:
+                recordsToKeep[allele] = records
+
+        ## Add All Alleles with allRecords to dict
+        recordsToKeep["All"] = allRecords
+
+        counts = phaseReads(recordsToKeep, ampliconMeth, outpath, methylationThr)
+        index = []
+        listSeries = []
+        for allele, series in counts.items():
+            index.append((sampleNm, ampliconName, "allele_"+allele))
+            listSeries.append(series)
+        index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "Allele"])
+        df = pd.DataFrame(listSeries, index = index)
+        ampliconToDF[ampliconName] = df
+
+    #print(ampliconToDF)
+    return(ampliconToDF)
 
 
 def baseToReads(samFile, chr, pos):
@@ -82,19 +117,29 @@ def baseToReads(samFile, chr, pos):
     return(baseToReadRecord)
 
 
-def getAmplicon(ampltable, methylation):
+## A class to hold info about an amplicon
+class Amplicon(object):
+    def __init__(self, name, chrom, start, end, strand, methylThr, location):
+        self.name = name
+        self.chrom = chrom
+        self.start = start
+        self.end = end
+        self.strand = strand
+        self.methylThr = methylThr
+        self.location = location
+
+
+def readAmplicon(ampltable):
     """
-    Split the methylation table per amplicon.
-    Return a dictionary
+    Read amplicon table and get list of amplicon objects
     :param ampltable:
     :param methylation:
-    :return: {amplicon name => methylation table}
+    :return:
     """
     ## Load the amplicon table
     amplicons = pd.read_csv(ampltable, sep="\t")
 
-    amplToMeth = {}
-    ## Go through amplicons and extract from meth table
+    amplList = []
     for index, row in amplicons.iterrows():
         name = row["Name"]
         chrom = row["Chr"]
@@ -102,12 +147,12 @@ def getAmplicon(ampltable, methylation):
         end = row["end"]
         strand = row["strand"]
         methylThr = row["methylThr"]
+        location = row["location"]
+        amplicon = Amplicon(name, chrom, start, end, strand, methylThr, location)
+        amplList.append(amplicon)
 
-        ## Extract the methylation table that concerns this amplicon region
-        ampliconMeth = methylation.loc[(methylation["Chr"] == chrom) & (methylation["Pos"] >= start) & (methylation["Pos"] <= end)]
-        amplToMeth[name] = ampliconMeth
 
-    return amplToMeth
+    return amplList
 
 
 def SplitBismMethExtr(methylExtr, readIDs):
@@ -118,7 +163,7 @@ def SplitBismMethExtr(methylExtr, readIDs):
     """
 
 
-def phaseReads(recordsToKeep, methylation, outpath):
+def phaseReads(recordsToKeep, methylation, outpath, methylThr):
     """
     Provided a heterozygous SNP is present, phase reads according to SNP.
     Apply methylPatterns on split dataset
@@ -127,19 +172,23 @@ def phaseReads(recordsToKeep, methylation, outpath):
     :return: {allele => countsDF}
     """
 
-    ## Get the sample name out of the bam file name. Expects a Bismark output file
-    ## str_search = re.search('.*/(.+)_bismark_bt2.sorted.bam', alignFile)
-    ## sampleName = str_search.group(1)
-
     alleleToCounts = {}
     ## Loop over alleles, phase reads
     for allele, records in recordsToKeep.items():
         methylationPhased = methylation[methylation["Read"].isin(records)]
-        countsPerClass = methylPatterns(methylationPhased, outpath)
+        countsPerClass = methylPatterns(methylationPhased, outpath, methylThr)
         alleleToCounts[allele] = countsPerClass
 
     return alleleToCounts
 
+def sampleName(file):
+    """
+    Get sample name out of the bismark file name.
+    Expects full path of a CpG file created by bismark
+    """
+    str_search = re.search('.+/CpG_OB_(.+)_bismark.+', file)
+    sampleName = str_search.group(1)
+    return sampleName
 
 if __name__ == '__main__':
     perSample()
@@ -158,3 +207,4 @@ if __name__ == '__main__':
         # alleleSpecReadsBam.close()
         # pysam.sort("-o", outputSortedBam, outputBam)
         # pysam.index(outputSortedBam)
+
