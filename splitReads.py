@@ -194,18 +194,4 @@ def sampleName(file):
 if __name__ == '__main__':
     perSample()
 
-####### $$$$$$$ #######
-        # alleleSpecificFileID = "{0}_{1}_{2}_{3}".format(sampleName, chr, pos, allele)
-        #
-        # ## outputBam = "{0}/{1}_bismark_bt2.bam".format(outputPath, alleleSpecificFileID)
-        # ## outputSortedBam = "{0}/bamFiles/{1}_bismark_bt2.sorted.bam".format(outputPath, alleleSpecificFileID)
-        # if not os.path.exists(outputPath+"/bamFiles"):
-        #
-        #     os.makedirs(outputPath+"/bamFiles")
-        # alleleSpecReadsBam = pysam.AlignmentFile(outputBam, "wb", template=samFile)
-        # for rcd in recordsToKeep[allele]:
-        #     alleleSpecReadsBam.write(rcd)
-        # alleleSpecReadsBam.close()
-        # pysam.sort("-o", outputSortedBam, outputBam)
-        # pysam.index(outputSortedBam)
 
