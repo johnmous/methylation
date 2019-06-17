@@ -1,32 +1,18 @@
-## Author: I. Moustakas
-## Title: Get the methylation patterns and count them
-## Usage: methylationPattern.py bismarkCpG outputDir sampleName
-
-import click
-import os
-import numpy as np
 import pandas as pd
-import re
-
-
-##
-## @click.command()
-## @click.option('--cpgfile', required = True, help = "CpG file from bismark (CpG_OB_*)")
-## @click.option('--ampltable', required = True, help = "Tab separated file with amplicon locations") ## TODO: specify table format
-## @click.option('--outpath', required = True, help='Path to place the output')
-
 
 def methylPatterns(methylation, outpath, methylThr):
     """
-    Separate reads in three categories: Methylated , unmethylated, partially methylated.
-    Count each category.
-    :param methylation: pandas df with columns "Read", "MethylStatus", "Chr", "Pos", "Zz"
-    :param outpath:
-    :return: A Series with counts of the three methylation categories
+    Separate reads in three categories: Methylated , unmethylated, partially methylated according to the number
+    of CpGs that are methyalted
+    :param methylation: pandas df with columns "Read", "MethylStatus", "Chr", "Pos", "Zz". This is the output of bismark_methylation_extractor
+    :param outpath: path to save the table with the methylation patterns
+    :param methylThr: an integer to separate a
+    :return: A pandas.Series with read counts and percentages for the three methylation categories
     """
 
     ## if records for amplicon, proceeed
     if len(methylation.index)>0:
+
         ## Get all methylation positions in the amplicon
         methPosCounts = methylation["Pos"].value_counts()
         readPosMethyl = methylation[["Read", "Pos", "MethylStatus"]]
@@ -45,55 +31,50 @@ def methylPatterns(methylation, outpath, methylThr):
         methylPattern.columns = methylPattern.columns.droplevel()
 
         ## Fill in NaN with asteriscs (NaN in the case methylation site not on all reads)
-        ## Count the methylation patterns
         methylPattern = methylPattern.fillna("*")
-        collCountPattern = methylPattern.groupby(methylPattern.columns.tolist()).size().reset_index().rename(columns={0:'counts'})
+        ## Collapses identical methylation patterns together and adds  column with the count for each pattern
+        collapsedCountedPatterns = methylPattern.groupby(methylPattern.columns.tolist()).size().reset_index().rename(columns={0:'counts'})
         totalMethPos = methylPattern.shape[1]
 
-        ## Count the per pattern methylation states
-        methStates = countStates(collCountPattern, "+")
-        unmethStates = countStates(collCountPattern, "-")
-        notAppl = countStates(collCountPattern, "*")
-        collCountPattern["methStatesCount"] = methStates
-        collCountPattern["unmethStatesCount"] = unmethStates
-        collCountPattern["notApplCount"] = notAppl
-        collCountPattern.to_csv(outpath + "/test.tsv", sep ="\t", header=True)
-        countMethClass = countPatterns(collCountPattern, totalMethPos, readCount, methylThr, posToKeepCount)
+        ## Count the per read methylation states and save in a separate column
+        collapsedCountedPatterns["methStatesCount"] = countStates(collapsedCountedPatterns, "+")
+        collapsedCountedPatterns["unmethStatesCount"] = countStates(collapsedCountedPatterns, "-")
+        collapsedCountedPatterns["notApplCount"] = countStates(collapsedCountedPatterns, "*")
+        collapsedCountedPatterns.to_csv(outpath + "/test.tsv", sep ="\t", header=True)
+
+        ## Splits the methylation patterns in 3 categories:
+        ## Mostly methylated (meth > totalMethPos-methylThr)
+        ## Mostly unMethylated (meth < methylThr)
+        ## Else patriallyMeth
+        ## Count reads in each category
+        ## Returns a Series
+        methylated = sum(collapsedCountedPatterns[collapsedCountedPatterns["methStatesCount"] > totalMethPos - methylThr]["counts"])
+        unmethylated = sum(collapsedCountedPatterns[collapsedCountedPatterns["unmethStatesCount"] > methylThr]["counts"])
+        patriallyMeth = readCount - methylated - unmethylated
+        methylPcnt = methylated / readCount
+        unmethylPcnt = unmethylated / readCount
+        partialPcnt = patriallyMeth / readCount
+        countMethClass = pd.Series(
+            [readCount, methylated, methylPcnt, unmethylated, unmethylPcnt, patriallyMeth, partialPcnt],
+            index=["totalReads",
+                   "methylated_reads_{}-{}mGC".format(posToKeepCount, posToKeepCount - methylThr),
+                   "methylPcnt",
+                   "unmethylated_reads_{}-{}".format(posToKeepCount, posToKeepCount - methylThr),
+                   "unmethylPcnt",
+                   "patriallyMeth_reads",
+                   "partialPcnt"])
+
         return countMethClass
 
 def countStates(methMatrix, methState):
     """
-    Count the occurence of strings (denoting methylations tates) in the table per pattern (row):
+    Count the occurence of strings (denoting methylations states) in the table per pattern (row):
     Returns a Series with length equal to matrix rows
     """
     patterns = methMatrix.drop(labels="counts", axis=1)
     counts = patterns.apply(func = lambda x: sum(x == methState), axis = 1)
     return counts
 
-def countPatterns(methMatrix, totalMethPos, readCount, stateThr, posToKeepCount):
-    """
-    Splits the methylation patterns in 3 categories:
-    Mostly methylated (meth > stateThr)
-    Mostly unMethylated (meth < stateThr)
-    Else patriallyMeth
-    Count reads in each category
-    Returns a Series
-    """
-    methylated = sum(methMatrix[methMatrix["methStatesCount"]>totalMethPos-stateThr]["counts"])
-    unmethylated = sum(methMatrix[methMatrix["unmethStatesCount"]>stateThr]["counts"])
-    patriallyMeth = readCount - methylated - unmethylated
-    methylPcnt = methylated/readCount
-    unmethylPcnt = unmethylated/readCount
-    partialPcnt = patriallyMeth/readCount
-    countMethClass = pd.Series([readCount, methylated, methylPcnt, unmethylated, unmethylPcnt, patriallyMeth, partialPcnt],
-                             index = ["totalReads",
-                                      "methylated_reads_{}-{}mGC".format(posToKeepCount, posToKeepCount-stateThr),
-                                      "methylPcnt",
-                                      "unmethylated_reads_{}-{}".format(posToKeepCount, posToKeepCount-stateThr),
-                                      "unmethylPcnt",
-                                      "patriallyMeth_reads",
-                                       "partialPcnt"])
-    return countMethClass
 
 
 if __name__ == "__main__":
