@@ -10,14 +10,13 @@ from methylationPattern import methylPatterns
 
 @click.command()
 @click.option('--samfile', required=True, help='Alignment file')
-## @click.option('--location', required = True, help='Allele location to split on, formatted as chrom:pos')
 @click.option('--thr', required=True, help='Threshold for allele frequency bellow which an allele is ignored')
 @click.option('--outpath', required=True, help='Path to place the output')
 @click.option('--cpgfile', required=True, help="CpG file from bismark (CpG_OB_*)")
 @click.option('--ampltable', required=True, help="Tab separated file with amplicon locations") ##TODO: specify table format
 def perSample(samfile, thr, outpath, cpgfile, ampltable):
     """
-    For each sample, accepts an alignment file,cd  a methylation call file and list of amplicons
+    Accepts an alignment file, a methylation call file and list of amplicons
     For each amplicon, calculate a table with methylation pattern counts
     :param samfiles:
     :param location:
@@ -55,42 +54,44 @@ def perSample(samfile, thr, outpath, cpgfile, ampltable):
     ampliconToDF = {}
 
     for amplicon in amplList:
-        location = amplicon.location
         start = amplicon.start
         end = amplicon.end
         methylationThr = amplicon.methylThr
         ampliconName = amplicon.name
+        chrom = amplicon.chrom
+        snpCoords = amplicon.snp_coord.split(";")
 
-        chrom, pos = location.split(":")
-        pos = int(pos) - 1
         ## Extract the methylation table that concerns this amplicon region
         ampliconMeth = methylation.loc[(methylation["Chr"] == chrom) & (methylation["Pos"] >= start) & (methylation["Pos"] <= end)]
 
-        ## Create a dict of allele to records list from the alignment file
-        alleleToReadRecord = baseToReads(samFile, chrom, pos)
-        allRecords = [record for listRecords in alleleToReadRecord.values() for record in listRecords]
-        allRecordCounts = len(allRecords)
-
-        ## Remove alleles with read count below threshold
-        recordsToKeep = {}
-        for allele, records in alleleToReadRecord.items():
-            if len(records) > float(thr) * allRecordCounts:
-                recordsToKeep[allele] = records
-
-        ## Add All Alleles with allRecords to dict
-        recordsToKeep["All"] = allRecords
-
-        counts = phaseReads(recordsToKeep, ampliconMeth, outpath, methylationThr)
         index = []
         listSeries = []
-        for allele, series in counts.items():
-            index.append((sampleNm, ampliconName, "allele_"+allele))
-            listSeries.append(series)
-        index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "Allele"])
+        ## Each amplicon region might have more than one SNPs
+        for snpCoord in snpCoords:
+            snpCoord = int(snpCoord)-1
+            ## Create a dict of allele to records list from the alignment file
+            alleleToReadRecord = baseToReads(samFile, chrom, snpCoord)
+            allRecords = [record for listRecords in alleleToReadRecord.values() for record in listRecords]
+            allRecordCounts = len(allRecords)
+
+            ## Remove alleles with read count below threshold
+            recordsToKeep = {}
+            for allele, records in alleleToReadRecord.items():
+                if len(records) > float(thr) * allRecordCounts:
+                    recordsToKeep[allele] = records
+
+            ## Add All Alleles with allRecords to dict
+            recordsToKeep["All"] = allRecords
+
+            counts = phaseReads(recordsToKeep, ampliconMeth, outpath, methylationThr)
+            for allele, series in counts.items():
+                index.append((sampleNm, ampliconName, "{0}:{1}".format(chrom, snpCoord), allele))
+                listSeries.append(series)
+        index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
         df = pd.DataFrame(listSeries, index = index)
         ampliconToDF[ampliconName] = df
 
-    #print(ampliconToDF)
+    print(df)
     return(ampliconToDF)
 
 
@@ -119,14 +120,14 @@ def baseToReads(samFile, chr, pos):
 
 ## A class to hold info about an amplicon
 class Amplicon(object):
-    def __init__(self, name, chrom, start, end, strand, methylThr, location):
+    def __init__(self, name, chrom, start, end, strand, methylThr, snp_coord):
         self.name = name
         self.chrom = chrom
         self.start = start
         self.end = end
         self.strand = strand
         self.methylThr = methylThr
-        self.location = location
+        self.snp_coord = snp_coord
 
 
 def readAmplicon(ampltable):
@@ -147,8 +148,8 @@ def readAmplicon(ampltable):
         end = row["end"]
         strand = row["strand"]
         methylThr = row["methylThr"]
-        location = row["location"]
-        amplicon = Amplicon(name, chrom, start, end, strand, methylThr, location)
+        snp_coord = row["snp_coord"]
+        amplicon = Amplicon(name, chrom, start, end, strand, methylThr, snp_coord)
         amplList.append(amplicon)
 
 
