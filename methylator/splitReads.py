@@ -6,12 +6,17 @@ import pysam
 import re
 import os
 import pandas as pd
-from methylationPattern import methylPatterns
+
+from typing import List
+from dataclasses import dataclass
+
+
+from .methylationPattern import methylPatterns
 
 @click.command()
-@click.option('--samfile', required=True, help='Alignment file')
-@click.option('--thr', required=True, help='Threshold for allele frequency bellow which an allele is ignored')
-@click.option('--outpath', required=True, help='Path to place the output')
+@click.option('--samfile', type=click.Path(exists=True, readable=True), required=True, help='Alignment file')
+@click.option('--thr', type=click.FLOAT, required=True, help='Threshold for allele frequency bellow which an allele is ignored')
+@click.option('--outpath', type=click.Path(writable=True), required=True, help='Path to place the output')
 @click.option('--cpgfile', required=True, help="CpG file from bismark (CpG_OB_*)")
 @click.option('--ampltable', required=True, help="Tab separated file with amplicon locations") ##TODO: specify table format
 def perSample(samfile, thr, outpath, cpgfile, ampltable):
@@ -27,12 +32,12 @@ def perSample(samfile, thr, outpath, cpgfile, ampltable):
     :return: {amplicon => methylation counts DF}
     """
 
-    ## Create output directory
+    # Create output directory
     if not os.path.exists(outpath):
         os.makedirs(outpath)
 
-    ## Load methylation call data. Forward and reverse strand are in two separate files (OB and OT).
-    ## Combine them in one df. If file does not exist, create empty DF
+    # Load methylation call data. Forward and reverse strand are in two separate files (OB and OT).
+    # Combine them in one df. If file does not exist, create empty DF
     if os.path.isfile(cpgfile):
         methylationOB = pd.read_csv(cpgfile, sep="\t", skiprows=1, header=None, names=["Read", "MethylStatus", "Chr", "Pos", "Zz"])
     else:
@@ -44,43 +49,44 @@ def perSample(samfile, thr, outpath, cpgfile, ampltable):
     else:
         methylation = methylationOB
 
-    ## Read alignment file, create a dict of allele to records list
+    # Read alignment file, create a dict of allele to records list
     samFile = pysam.AlignmentFile(samfile, 'rb')
 
-    #amplInfo = getAmplicon(ampltable, methylation)
     amplList = readAmplicon(ampltable)
     sampleNm = sampleName(cpgfile)
 
     ampliconToDF = {}
 
+    # Loop over the list of amplicons
     for amplicon in amplList:
         start = amplicon.start
         end = amplicon.end
         methylationThr = amplicon.methylThr
         ampliconName = amplicon.name
         chrom = amplicon.chrom
-        snpCoords = amplicon.snp_coord.split(";")
+        snpCoords = amplicon.snps_coord.split(";")
 
-        ## Extract the methylation table that concerns this amplicon region
+        # Extract the methylation table that concerns this amplicon region
         ampliconMeth = methylation.loc[(methylation["Chr"] == chrom) & (methylation["Pos"] >= start) & (methylation["Pos"] <= end)]
 
         index = []
         listSeries = []
-        ## Each amplicon region might have more than one SNPs
+        # Each amplicon region might have more than one SNPs
         for snpCoord in snpCoords:
-            snpCoord = int(snpCoord)-1
-            ## Create a dict of allele to records list from the alignment file
+            snpCoord = int(snpCoord)-1  # pysam uses zero-based indexing
+            # Create a dict of allele to records list from the alignment file
             alleleToReadRecord = baseToReads(samFile, chrom, snpCoord)
+            # returns a flattened list
             allRecords = [record for listRecords in alleleToReadRecord.values() for record in listRecords]
             allRecordCounts = len(allRecords)
 
-            ## Remove alleles with read count below threshold
+            # Remove alleles with read count below threshold
             recordsToKeep = {}
             for allele, records in alleleToReadRecord.items():
                 if len(records) > float(thr) * allRecordCounts:
                     recordsToKeep[allele] = records
 
-            ## Add All Alleles with allRecords to dict
+            # Add All Alleles with allRecords to dict
             recordsToKeep["All"] = allRecords
 
             counts = phaseReads(recordsToKeep, ampliconMeth, outpath, methylationThr)
@@ -118,19 +124,30 @@ def baseToReads(samFile, chr, pos):
     return(baseToReadRecord)
 
 
-## A class to hold info about an amplicon
-class Amplicon(object):
-    def __init__(self, name, chrom, start, end, strand, methylThr, snp_coord):
-        self.name = name
-        self.chrom = chrom
-        self.start = start
-        self.end = end
-        self.strand = strand
-        self.methylThr = methylThr
-        self.snp_coord = snp_coord
+# A class to hold info about an amplicon
+
+@dataclass
+class Amplicon:
+    name: str
+    chrom: str
+    start: int
+    end: int
+    strand: str
+    methylThr: float
+    snps_coord: str
+
+# class Amplicon(object):
+#     def __init__(self, name, chrom, start, end, strand, methylThr, snp_coord):
+#         self.name = name
+#         self.chrom = chrom
+#         self.start = start
+#         self.end = end
+#         self.strand = strand
+#         self.methylThr = methylThr
+#         self.snp_coord = snp_coord
 
 
-def readAmplicon(ampltable):
+def readAmplicon(ampltable) -> List[Amplicon]:
     """
     Read amplicon table and get list of amplicon objects
     :param ampltable:
@@ -149,6 +166,10 @@ def readAmplicon(ampltable):
         strand = row["strand"]
         methylThr = row["methylThr"]
         snp_coord = row["snp_coord"]
+        # row: List[things]
+        # amplication = Amplicon(*row)  <- Amplicon(row[0], row[1] .... )
+        # row: Dict[str, things]
+        # amplicon = Amplicon(**row) <- Amplicon(key=row[key], key2=row[key2]...)
         amplicon = Amplicon(name, chrom, start, end, strand, methylThr, snp_coord)
         amplList.append(amplicon)
 
@@ -162,6 +183,7 @@ def SplitBismMethExtr(methylExtr, readIDs):
     Phase the reads according to the SNP(s) in the amplicon and
     save in separate file
     """
+    raise NotImplementedError
 
 
 def phaseReads(recordsToKeep, methylation, outpath, methylThr):
@@ -195,3 +217,4 @@ if __name__ == '__main__':
     perSample()
 
 
+## pd.concat([list(a.values())[0], list(b.values())[0]])
