@@ -6,20 +6,40 @@ import pysam
 import re
 import os
 import pandas as pd
+from pathlib import Path
 
 from typing import List
 from dataclasses import dataclass
-
-
 from .methylationPattern import methylPatterns
 
 @click.command()
-@click.option('--samfile', type=click.Path(exists=True, readable=True), required=True, help='Alignment file')
+@click.option('--inputpath', type=click.Path(exists=True, readable=True), required=True, help='Directory with CpG and alignment files files')
 @click.option('--thr', type=click.FLOAT, required=True, help='Threshold for allele frequency bellow which an allele is ignored')
 @click.option('--outpath', type=click.Path(writable=True), required=True, help='Path to place the output')
-@click.option('--cpgfile', required=True, help="CpG file from bismark (CpG_OB_*)")
+# @click.option('--cpgfile', required=True, help="CpG file from bismark (CpG_OB_*)")
 @click.option('--ampltable', required=True, help="Tab separated file with amplicon locations") ##TODO: specify table format
-def perSample(samfile, thr, outpath, cpgfile, ampltable):
+def topLevel(inputpath, thr, outpath, ampltable):
+    inPath = Path(inputpath)
+    alignmentFiles = list(inPath.glob("*bam"))
+
+    # Loop over samples, put the per sample output in a dict according to the amplicon
+    amplToDF = {}
+    for file in alignmentFiles:
+        sampleID = sampleName(str(file))
+        cpgFile = inputpath + "/CpG_OB_" + sampleID + ".extendedFrags_trimmed.fastq_bismark_bt2.txt"
+        df = perSample(file, thr, outpath, cpgFile, ampltable, sampleID)
+        for ampl, d in df.items():
+            if ampl not in amplToDF:
+                amplToDF[ampl] = [d]
+            else:
+                amplToDF[ampl].append(d)
+    for ampl, d in amplToDF.items():
+        pd.concat(d).to_csv("{0}/{1}.tsv".format(outpath, ampl), sep ="\t", header=True)
+        pd.concat(d).to_excel("{0}/{1}.xls".format(outpath, ampl))
+
+
+
+def perSample(samfile, thr, outpath, cpgfile, ampltable, sampleID):
     """
     Accepts an alignment file, a methylation call file and list of amplicons
     For each amplicon, calculate a table with methylation pattern counts
@@ -53,7 +73,6 @@ def perSample(samfile, thr, outpath, cpgfile, ampltable):
     samFile = pysam.AlignmentFile(samfile, 'rb')
 
     amplList = readAmplicon(ampltable)
-    sampleNm = sampleName(cpgfile)
 
     ampliconToDF = {}
 
@@ -64,6 +83,7 @@ def perSample(samfile, thr, outpath, cpgfile, ampltable):
         methylationThr = amplicon.methylThr
         ampliconName = amplicon.name
         chrom = amplicon.chrom
+        numberCGs = amplicon.nr_cg
         snpCoords = amplicon.snps_coord.split(";")
 
         # Extract the methylation table that concerns this amplicon region
@@ -87,17 +107,15 @@ def perSample(samfile, thr, outpath, cpgfile, ampltable):
                     recordsToKeep[allele] = records
 
             # Add All Alleles with allRecords to dict
-            recordsToKeep["All"] = allRecords
+            recordsToKeep["Total"] = allRecords
 
-            counts = phaseReads(recordsToKeep, ampliconMeth, outpath, methylationThr)
+            counts = phaseReads(recordsToKeep, ampliconMeth, outpath, methylationThr, numberCGs, sampleID, chrom, snpCoord)
             for allele, series in counts.items():
-                index.append((sampleNm, ampliconName, "{0}:{1}".format(chrom, snpCoord), allele))
+                index.append((sampleID, ampliconName, "{0}:{1}".format(chrom, snpCoord), allele))
                 listSeries.append(series)
         index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
         df = pd.DataFrame(listSeries, index = index)
         ampliconToDF[ampliconName] = df
-
-    print(df)
     return(ampliconToDF)
 
 
@@ -133,19 +151,9 @@ class Amplicon:
     start: int
     end: int
     strand: str
-    methylThr: float
+    nr_cg: int
+    methylThr: int
     snps_coord: str
-
-# class Amplicon(object):
-#     def __init__(self, name, chrom, start, end, strand, methylThr, snp_coord):
-#         self.name = name
-#         self.chrom = chrom
-#         self.start = start
-#         self.end = end
-#         self.strand = strand
-#         self.methylThr = methylThr
-#         self.snp_coord = snp_coord
-
 
 def readAmplicon(ampltable) -> List[Amplicon]:
     """
@@ -164,29 +172,18 @@ def readAmplicon(ampltable) -> List[Amplicon]:
         start = row["start"]
         end = row["end"]
         strand = row["strand"]
+        nr_cg = row["nr_CG"]
         methylThr = row["methylThr"]
-        snp_coord = row["snp_coord"]
+        snp_coord = str(row["snps_coord"])
         # row: List[things]
         # amplication = Amplicon(*row)  <- Amplicon(row[0], row[1] .... )
         # row: Dict[str, things]
         # amplicon = Amplicon(**row) <- Amplicon(key=row[key], key2=row[key2]...)
-        amplicon = Amplicon(name, chrom, start, end, strand, methylThr, snp_coord)
+        amplicon = Amplicon(name, chrom, start, end, strand, nr_cg, methylThr, snp_coord)
         amplList.append(amplicon)
-
-
     return amplList
 
-
-def SplitBismMethExtr(methylExtr, readIDs):
-    """
-    Split Bismark methylation extractor output file.
-    Phase the reads according to the SNP(s) in the amplicon and
-    save in separate file
-    """
-    raise NotImplementedError
-
-
-def phaseReads(recordsToKeep, methylation, outpath, methylThr):
+def phaseReads(recordsToKeep, methylation, outpath, methylThr, numberCGs, sampleID, chrom, snpCoord):
     """
     Provided a heterozygous SNP is present, phase reads according to SNP.
     Apply methylPatterns on split dataset
@@ -199,7 +196,7 @@ def phaseReads(recordsToKeep, methylation, outpath, methylThr):
     ## Loop over alleles, phase reads
     for allele, records in recordsToKeep.items():
         methylationPhased = methylation[methylation["Read"].isin(records)]
-        countsPerClass = methylPatterns(methylationPhased, outpath, methylThr)
+        countsPerClass = methylPatterns(methylationPhased, outpath, methylThr, numberCGs, sampleID, allele, chrom, snpCoord)
         alleleToCounts[allele] = countsPerClass
 
     return alleleToCounts
@@ -209,12 +206,13 @@ def sampleName(file):
     Get sample name out of the bismark file name.
     Expects full path of a CpG file created by bismark
     """
-    str_search = re.search('.+/CpG_OB_(.+)_bismark.+', file)
+    # str_search = re.search('.+/CpG_OB_(.+)_bismark.+', file)
+    str_search = re.search('.+/(.+)\.extendedFrags\.bam\.sorted\.bam', file)
     sampleName = str_search.group(1)
     return sampleName
 
 if __name__ == '__main__':
-    perSample()
+    topLevel()
 
 
 ## pd.concat([list(a.values())[0], list(b.values())[0]])

@@ -1,7 +1,8 @@
 import pandas as pd
+from pathlib import Path
 
 
-def methylPatterns(methylation, outpath, methylThr):
+def methylPatterns(methylation, outpath, methylThr, numberCGs, sampleID, allele, chrom, snpCoord):
     """
     Separate reads in three categories: Methylated , unmethylated, partially methylated according to the number
     of CpGs that are methyalted
@@ -11,8 +12,7 @@ def methylPatterns(methylation, outpath, methylThr):
     :return: A pandas.Series with read counts and percentages for the three methylation categories
     """
 
-    # if records for amplicon, proceeed
-    # TODO: else happens what?
+    # if records for amplicon
     if len(methylation.index)>0:
 
         # Get all methylation positions in the amplicon
@@ -22,7 +22,7 @@ def methylPatterns(methylation, outpath, methylThr):
 
         # Keep only meth posistions with counts in at least 1% of all reads in amplicon
         posToKeep = methPosCounts[methPosCounts > readCount*0.01].index
-        posToKeepCount = len(posToKeep)
+        # posToKeepCount = len(posToKeep)
         readPosMethyl = readPosMethyl[readPosMethyl["Pos"].isin(posToKeep)]
 
         # reshape the DF
@@ -36,22 +36,26 @@ def methylPatterns(methylation, outpath, methylThr):
         methylPattern = methylPattern.fillna("*")
         # Collapses identical methylation patterns together and adds  column with the count for each pattern
         collapsedCountedPatterns = methylPattern.groupby(methylPattern.columns.tolist()).size().reset_index().rename(columns={0:'counts'})
-        totalMethPos = methylPattern.shape[1]
+        # totalMethPos = methylPattern.shape[1]
 
         # Count the per read methylation states and save in a separate column
         collapsedCountedPatterns["methStatesCount"] = countStates(collapsedCountedPatterns, "+")
         collapsedCountedPatterns["unmethStatesCount"] = countStates(collapsedCountedPatterns, "-")
         collapsedCountedPatterns["notApplCount"] = countStates(collapsedCountedPatterns, "*")
-        collapsedCountedPatterns.to_csv(outpath + "/test.tsv", sep ="\t", header=True)
+
+        # Save in table
+        p = Path(outpath + "/perSample/")
+        p.mkdir( exist_ok=True)
+        collapsedCountedPatterns.to_csv("{0}/perSample/{1}_{2}_{3}.{4}.tsv".format(outpath, sampleID, chrom, snpCoord, allele), sep ="\t", header=True)
 
         # Splits the methylation patterns in 3 categories:
-        # Mostly methylated (meth > totalMethPos-methylThr)
-        # Mostly unMethylated (meth < methylThr)
+        # Mostly methylated (meth >= totalMethPos-methylThr)
+        # Mostly unMethylated (meth <= methylThr)
         # Else patriallyMeth
         # Count reads in each category
         # Returns a Series
-        methylated = sum(collapsedCountedPatterns[collapsedCountedPatterns["methStatesCount"] > totalMethPos - methylThr]["counts"])
-        unmethylated = sum(collapsedCountedPatterns[collapsedCountedPatterns["unmethStatesCount"] > methylThr]["counts"])
+        methylated = sum(collapsedCountedPatterns[collapsedCountedPatterns["methStatesCount"] >= (numberCGs - methylThr)]["counts"])
+        unmethylated = sum(collapsedCountedPatterns[collapsedCountedPatterns["methStatesCount"] <= methylThr]["counts"])
         patriallyMeth = readCount - methylated - unmethylated
         methylPcnt = methylated / readCount
         unmethylPcnt = unmethylated / readCount
@@ -59,14 +63,24 @@ def methylPatterns(methylation, outpath, methylThr):
         countMethClass = pd.Series(
             [readCount, methylated, methylPcnt, unmethylated, unmethylPcnt, patriallyMeth, partialPcnt],
             index=["totalReads",
-                   "methylated_reads_{}-{}mGC".format(posToKeepCount, posToKeepCount - methylThr),
+                   "methylated_reads(mGCs>={})".format(numberCGs - methylThr),
                    "methylPcnt",
-                   "unmethylated_reads_{}-{}".format(posToKeepCount, posToKeepCount - methylThr),
+                   "unmethylated_reads(mGCs<={})".format(methylThr),
+                   "unmethylPcnt",
+                   "patriallyMeth_reads",
+                   "partialPcnt"])
+    else:
+        countMethClass = pd.Series(
+            [0, 0, 0, 0, 0, 0, 0],
+            index=["totalReads",
+                   "methylated_reads(mGCs>={})".format(numberCGs - methylThr),
+                   "methylPcnt",
+                   "unmethylated_reads(mGCs<={})".format(methylThr),
                    "unmethylPcnt",
                    "patriallyMeth_reads",
                    "partialPcnt"])
 
-        return countMethClass
+    return countMethClass
 
 def countStates(methMatrix, methState):
     """
