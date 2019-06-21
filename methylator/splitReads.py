@@ -111,7 +111,7 @@ def perSample(samfile, thr, outpath, cpgfile, ampltable, sampleID):
 
             counts = phaseReads(recordsToKeep, ampliconMeth, outpath, methylationThr, numberCGs, sampleID, chrom, snpCoord)
             for allele, series in counts.items():
-                index.append((sampleID, ampliconName, "{0}:{1}".format(chrom, snpCoord), allele))
+                index.append((sampleID, ampliconName, "{0}:{1}".format(chrom, snpCoord+1), allele))
                 listSeries.append(series)
         index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
         df = pd.DataFrame(listSeries, index = index)
