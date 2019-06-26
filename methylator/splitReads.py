@@ -33,11 +33,12 @@ def topLevel(inputpath, thr, outpath, ampltable):
                 amplToDF[ampl] = [d]
             else:
                 amplToDF[ampl].append(d)
+    # One table per amplicon
     for ampl, d in amplToDF.items():
         pd.concat(d).to_csv("{0}/{1}.tsv".format(outpath, ampl), sep ="\t", header=True)
         pd.concat(d).to_excel("{0}/{1}.xls".format(outpath, ampl))
-
-
+    # Create an empty file to signal the end of script for snakemake
+    Path(outpath + '/methylator.txt').touch()
 
 def perSample(samfile, thr, outpath, cpgfile, ampltable, sampleID):
     """
