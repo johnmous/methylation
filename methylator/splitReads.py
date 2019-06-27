@@ -13,20 +13,19 @@ from dataclasses import dataclass
 from .methylationPattern import methylPatterns
 
 @click.command()
-@click.option('--inputpath', type=click.Path(exists=True, readable=True), required=True, help='Directory with CpG and alignment files files')
+@click.option('--inpath', type=click.Path(exists=True, readable=True), required=True, help='Directory with CpG and alignment files files')
 @click.option('--thr', type=click.FLOAT, required=True, help='Threshold for allele frequency bellow which an allele is ignored')
 @click.option('--outpath', type=click.Path(writable=True), required=True, help='Path to place the output')
-# @click.option('--cpgfile', required=True, help="CpG file from bismark (CpG_OB_*)")
 @click.option('--ampltable', required=True, help="Tab separated file with amplicon locations") ##TODO: specify table format
-def topLevel(inputpath, thr, outpath, ampltable):
-    inPath = Path(inputpath)
+def topLevel(inpath, thr, outpath, ampltable):
+    inPath = Path(inpath)
     alignmentFiles = list(inPath.glob("*bam"))
 
     # Loop over samples, put the per sample output in a dict according to the amplicon
     amplToDF = {}
     for file in alignmentFiles:
         sampleID = sampleName(str(file))
-        cpgFile = inputpath + "/CpG_OB_" + sampleID + "_bismark_bt2.sorted.txt.gz"
+        cpgFile = inpath + "/CpG_OB_" + sampleID + "_bismark_bt2.sorted.txt.gz"
         df = perSample(file, thr, outpath, cpgFile, ampltable, sampleID)
         for ampl, d in df.items():
             if ampl not in amplToDF:
@@ -144,17 +143,26 @@ def baseToReads(samFile, chr, pos):
 
 
 # A class to hold info about an amplicon
+# @dataclass
+# class Amplicon:
+#    name: str
+#    chrom: str
+#    start: int
+#    end: int
+#    strand: str
+#    nr_cg: int
+#    methylThr: int
+#    snps_coord: str
 
-@dataclass
-class Amplicon:
-    name: str
-    chrom: str
-    start: int
-    end: int
-    strand: str
-    nr_cg: int
-    methylThr: int
-    snps_coord: str
+class Amplicon(object):
+    def __init__(self, name, chrom, start, end, strand, methylThr, snp_coord):
+        self.name = name
+        self.chrom = chrom
+        self.start = start
+        self.end = end
+        self.strand = strand
+        self.methylThr = methylThr
+        self.snp_coord = snp_coord
 
 def readAmplicon(ampltable) -> List[Amplicon]:
     """
