@@ -26,7 +26,7 @@ def topLevel(inputpath, thr, outpath, ampltable):
     amplToDF = {}
     for file in alignmentFiles:
         sampleID = sampleName(str(file))
-        cpgFile = inputpath + "/CpG_OB_" + sampleID + ".extendedFrags_trimmed.fastq_bismark_bt2.txt"
+        cpgFile = inputpath + "/CpG_OB_" + sampleID + "_bismark_bt2.sorted.txt.gz"
         df = perSample(file, thr, outpath, cpgFile, ampltable, sampleID)
         for ampl, d in df.items():
             if ampl not in amplToDF:
@@ -208,7 +208,7 @@ def sampleName(file):
     Expects full path of a CpG file created by bismark
     """
     # str_search = re.search('.+/CpG_OB_(.+)_bismark.+', file)
-    str_search = re.search('.+/(.+)\.extendedFrags\.bam\.sorted\.bam', file)
+    str_search = re.search('.+/(.+)_bismark_bt2\.sorted\.bam', file)
     sampleName = str_search.group(1)
     return sampleName
 
