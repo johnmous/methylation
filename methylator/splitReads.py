@@ -9,7 +9,7 @@ import pandas as pd
 from pathlib import Path
 
 from typing import List
-from dataclasses import dataclass
+# from dataclasses import dataclass
 from .methylationPattern import methylPatterns
 
 @click.command()
@@ -155,12 +155,13 @@ def baseToReads(samFile, chr, pos):
 #    snps_coord: str
 
 class Amplicon(object):
-    def __init__(self, name, chrom, start, end, strand, methylThr, snp_coord):
+    def __init__(self, name, chrom, start, end, strand, nr_cg, methylThr, snp_coord):
         self.name = name
         self.chrom = chrom
         self.start = start
         self.end = end
         self.strand = strand
+        self.nr_cg = nr_cg
         self.methylThr = methylThr
         self.snp_coord = snp_coord
 
