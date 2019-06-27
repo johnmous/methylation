@@ -155,7 +155,7 @@ def baseToReads(samFile, chr, pos):
 #    snps_coord: str
 
 class Amplicon(object):
-    def __init__(self, name, chrom, start, end, strand, nr_cg, methylThr, snp_coord):
+    def __init__(self, name, chrom, start, end, strand, nr_cg, methylThr, snps_coord):
         self.name = name
         self.chrom = chrom
         self.start = start
@@ -163,7 +163,7 @@ class Amplicon(object):
         self.strand = strand
         self.nr_cg = nr_cg
         self.methylThr = methylThr
-        self.snp_coord = snp_coord
+        self.snps_coord = snps_coord
 
 def readAmplicon(ampltable) -> List[Amplicon]:
     """
