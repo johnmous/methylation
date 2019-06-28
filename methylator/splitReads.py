@@ -9,7 +9,7 @@ import pandas as pd
 from pathlib import Path
 
 from typing import List
-# from dataclasses import dataclass
+from dataclasses import dataclass
 from .methylationPattern import methylPatterns
 
 @click.command()
@@ -143,27 +143,27 @@ def baseToReads(samFile, chr, pos):
 
 
 # A class to hold info about an amplicon
-# @dataclass
-# class Amplicon:
-#    name: str
-#    chrom: str
-#    start: int
-#    end: int
-#    strand: str
-#    nr_cg: int
-#    methylThr: int
-#    snps_coord: str
+@dataclass
+class Amplicon:
+    name: str
+    chrom: str
+    start: int
+    end: int
+    strand: str
+    nr_cg: int
+    methylThr: int
+    snps_coord: str
 
-class Amplicon(object):
-    def __init__(self, name, chrom, start, end, strand, nr_cg, methylThr, snps_coord):
-        self.name = name
-        self.chrom = chrom
-        self.start = start
-        self.end = end
-        self.strand = strand
-        self.nr_cg = nr_cg
-        self.methylThr = methylThr
-        self.snps_coord = snps_coord
+# class Amplicon(object):
+#     def __init__(self, name, chrom, start, end, strand, nr_cg, methylThr, snps_coord):
+#         self.name = name
+#         self.chrom = chrom
+#         self.start = start
+#         self.end = end
+#         self.strand = strand
+#         self.nr_cg = nr_cg
+#         self.methylThr = methylThr
+#         self.snps_coord = snps_coord
 
 def readAmplicon(ampltable) -> List[Amplicon]:
     """
