@@ -12,34 +12,36 @@ from typing import List
 from dataclasses import dataclass
 from .methylationPattern import methylPatterns
 
+
 @click.command()
 @click.option('--inpath', type=click.Path(exists=True, readable=True), required=True, help='Directory with CpG and alignment files files')
 @click.option('--thr', type=click.FLOAT, required=True, help='Threshold for allele frequency bellow which an allele is ignored')
 @click.option('--outpath', type=click.Path(writable=True), required=True, help='Path to place the output')
 @click.option('--ampltable', required=True, help="Tab separated file with amplicon locations") ##TODO: specify table format
-def topLevel(inpath, thr, outpath, ampltable):
-    inPath = Path(inpath)
-    alignmentFiles = list(inPath.glob("*bam"))
+def main(inpath, thr, outpath, ampltable):
+    in_path = Path(inpath)
+    alignment_files = list(in_path.glob("*bam"))
 
     # Loop over samples, put the per sample output in a dict according to the amplicon
-    amplToDF = {}
-    for file in alignmentFiles:
-        sampleID = sampleName(str(file))
-        cpgFile = inpath + "/CpG_OB_" + sampleID + "_bismark_bt2.sorted.txt.gz"
-        df = perSample(file, thr, outpath, cpgFile, ampltable, sampleID)
+    ampl_to_df = {}
+    for file in alignment_files:
+        sample_id = sample_name(str(file))
+        cpg_file = inpath + "/CpG_OB_" + sample_id + "_bismark_bt2.sorted.txt.gz"
+        df = per_sample(file, thr, outpath, cpg_file, ampltable, sample_id)
         for ampl, d in df.items():
-            if ampl not in amplToDF:
-                amplToDF[ampl] = [d]
+            if ampl not in ampl_to_df:
+                ampl_to_df[ampl] = [d]
             else:
-                amplToDF[ampl].append(d)
+                ampl_to_df[ampl].append(d)
     # One table per amplicon
-    for ampl, d in amplToDF.items():
+    for ampl, d in ampl_to_df.items():
         pd.concat(d).to_csv("{0}/{1}.tsv".format(outpath, ampl), sep ="\t", header=True)
         pd.concat(d).to_excel("{0}/{1}.xls".format(outpath, ampl))
     # Create an empty file to signal the end of script for snakemake
     Path(outpath + '/methylator.txt').touch()
 
-def perSample(samfile, thr, outpath, cpgfile, ampltable, sampleID):
+
+def per_sample(samfile, thr, outpath, cpgfile, ampltable, sampleID):
     """
     Accepts an alignment file, a methylation call file and list of amplicons
     For each amplicon, calculate a table with methylation pattern counts
@@ -72,74 +74,74 @@ def perSample(samfile, thr, outpath, cpgfile, ampltable, sampleID):
     # Read alignment file, create a dict of allele to records list
     samFile = pysam.AlignmentFile(samfile, 'rb')
 
-    amplList = readAmplicon(ampltable)
+    ampl_list = read_amplicon(ampltable)
 
-    ampliconToDF = {}
+    amplicon_to_df = {}
 
     # Loop over the list of amplicons
-    for amplicon in amplList:
+    for amplicon in ampl_list:
         start = amplicon.start
         end = amplicon.end
-        methylationThr = amplicon.methylThr
-        ampliconName = amplicon.name
+        methylation_thr = amplicon.methyl_thr
+        amplicon_name = amplicon.name
         chrom = amplicon.chrom
-        numberCGs = amplicon.nr_cg
-        snpCoords = amplicon.snps_coord.split(";")
+        number_CGs = amplicon.nr_cg
+        snp_coords = amplicon.snps_coord.split(";")
 
         # Extract the methylation table that concerns this amplicon region
-        ampliconMeth = methylation.loc[(methylation["Chr"] == chrom) & (methylation["Pos"] >= start) & (methylation["Pos"] <= end)]
+        amplicon_meth = methylation.loc[(methylation["Chr"] == chrom) & (methylation["Pos"] >= start) & (methylation["Pos"] <= end)]
 
         index = []
-        listSeries = []
+        list_series = []
         # Each amplicon region might have more than one SNPs
-        for snpCoord in snpCoords:
-            snpCoord = int(snpCoord)-1  # pysam uses zero-based indexing
+        for snp_coord in snp_coords:
+            snp_coord = int(snp_coord)-1  # pysam uses zero-based indexing
             # Create a dict of allele to records list from the alignment file
-            alleleToReadRecord = baseToReads(samFile, chrom, snpCoord)
+            allele_to_read_record = base_to_reads(samFile, chrom, snp_coord)
             # returns a flattened list
-            allRecords = [record for listRecords in alleleToReadRecord.values() for record in listRecords]
-            allRecordCounts = len(allRecords)
+            all_records = [record for list_records in allele_to_read_record.values() for record in list_records]
+            all_record_counts = len(all_records)
 
             # Remove alleles with read count below threshold
-            recordsToKeep = {}
-            for allele, records in alleleToReadRecord.items():
-                if len(records) > float(thr) * allRecordCounts:
-                    recordsToKeep[allele] = records
+            records_to_keep = {}
+            for allele, records in allele_to_read_record.items():
+                if len(records) > float(thr) * all_record_counts:
+                    records_to_keep[allele] = records
 
-            # Add All Alleles with allRecords to dict
-            recordsToKeep["Total"] = allRecords
+            # Add All Alleles with all_records to dict
+            records_to_keep["Total"] = all_records
 
-            counts = phaseReads(recordsToKeep, ampliconMeth, outpath, methylationThr, numberCGs, sampleID, chrom, snpCoord)
+            counts = phase_reads(records_to_keep, amplicon_meth, outpath, methylation_thr, number_CGs, sampleID, chrom, snp_coord)
             for allele, series in counts.items():
-                index.append((sampleID, ampliconName, "{0}:{1}".format(chrom, snpCoord+1), allele))
-                listSeries.append(series)
+                index.append((sampleID, amplicon_name, "{0}:{1}".format(chrom, snp_coord+1), allele))
+                list_series.append(series)
         index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
-        df = pd.DataFrame(listSeries, index = index)
-        ampliconToDF[ampliconName] = df
-    return(ampliconToDF)
+        df = pd.DataFrame(list_series, index = index)
+        amplicon_to_df[amplicon_name] = df
+    return(amplicon_to_df)
 
 
-def baseToReads(samFile, chr, pos):
+def base_to_reads(sam_file, chr, pos):
     """
     For all possible alleles in a genomic position, return a dictionary {allele => [Read IDs with this allele]}
-    :param samFile:
+    :param sam_file:
     :param chr:
     :param pos:
     :return: dictionary {allele => [Read IDs with this allele]}
     """
-    pileups = samFile.pileup(chr, pos, max_depth=30000)
+    pileups = sam_file.pileup(chr, pos, max_depth=30000)
 
-    baseToReadRecord = {}
-    for pileupCol in pileups:
-        for pileupRead in pileupCol.pileups:
-            if not pileupRead.is_del and not pileupRead.is_refskip and pileupCol.pos == pos:
-                aln = pileupRead.alignment
-                base = aln.query_sequence[pileupRead.query_position]
-                if base not in baseToReadRecord:
-                    baseToReadRecord[base] = [aln.query_name]
+    base_to_read_record = {}
+    for pileup_col in pileups:
+        for pileup_read in pileup_col.pileups:
+            if not pileup_read.is_del and not pileup_read.is_refskip and pileup_col.pos == pos:
+                aln = pileup_read.alignment
+                base = aln.query_sequence[pileup_read.query_position]
+                if base not in base_to_read_record:
+                    base_to_read_record[base] = [aln.query_name]
                 else:
-                    baseToReadRecord[base].append(aln.query_name)
-    return(baseToReadRecord)
+                    base_to_read_record[base].append(aln.query_name)
+    return(base_to_read_record)
 
 
 # A class to hold info about an amplicon
@@ -151,21 +153,11 @@ class Amplicon:
     end: int
     strand: str
     nr_cg: int
-    methylThr: int
+    methyl_thr: int
     snps_coord: str
 
-# class Amplicon(object):
-#     def __init__(self, name, chrom, start, end, strand, nr_cg, methylThr, snps_coord):
-#         self.name = name
-#         self.chrom = chrom
-#         self.start = start
-#         self.end = end
-#         self.strand = strand
-#         self.nr_cg = nr_cg
-#         self.methylThr = methylThr
-#         self.snps_coord = snps_coord
 
-def readAmplicon(ampltable) -> List[Amplicon]:
+def read_amplicon(ampltable) -> List[Amplicon]:
     """
     Read amplicon table and get list of amplicon objects
     :param ampltable:
@@ -183,17 +175,18 @@ def readAmplicon(ampltable) -> List[Amplicon]:
         end = row["end"]
         strand = row["strand"]
         nr_cg = row["nr_CG"]
-        methylThr = row["methylThr"]
+        methyl_thr = row["methyl_thr"]
         snp_coord = str(row["snps_coord"])
         # row: List[things]
         # amplication = Amplicon(*row)  <- Amplicon(row[0], row[1] .... )
         # row: Dict[str, things]
         # amplicon = Amplicon(**row) <- Amplicon(key=row[key], key2=row[key2]...)
-        amplicon = Amplicon(name, chrom, start, end, strand, nr_cg, methylThr, snp_coord)
+        amplicon = Amplicon(name, chrom, start, end, strand, nr_cg, methyl_thr, snp_coord)
         amplList.append(amplicon)
     return amplList
 
-def phaseReads(recordsToKeep, methylation, outpath, methylThr, numberCGs, sampleID, chrom, snpCoord):
+
+def phase_reads(records_to_keep, methylation, outpath, methyl_thr, number_CGs, sample_id, chrom, snp_coord):
     """
     Provided a heterozygous SNP is present, phase reads according to SNP.
     Apply methylPatterns on split dataset
@@ -202,27 +195,26 @@ def phaseReads(recordsToKeep, methylation, outpath, methylThr, numberCGs, sample
     :return: {allele => countsDF}
     """
 
-    alleleToCounts = {}
+    allele_to_counts = {}
     ## Loop over alleles, phase reads
-    for allele, records in recordsToKeep.items():
-        methylationPhased = methylation[methylation["Read"].isin(records)]
-        countsPerClass = methylPatterns(methylationPhased, outpath, methylThr, numberCGs, sampleID, allele, chrom, snpCoord)
-        alleleToCounts[allele] = countsPerClass
+    for allele, records in records_to_keep.items():
+        methylation_phased = methylation[methylation["Read"].isin(records)]
+        counts_per_class = methylPatterns(methylation_phased, outpath, methyl_thr, number_CGs, sample_id, allele, chrom, snp_coord)
+        allele_to_counts[allele] = counts_per_class
 
-    return alleleToCounts
+    return allele_to_counts
 
-def sampleName(file):
+
+def sample_name(file):
     """
     Get sample name out of the bismark file name.
     Expects full path of a CpG file created by bismark
     """
     # str_search = re.search('.+/CpG_OB_(.+)_bismark.+', file)
     str_search = re.search('.+/(.+)_bismark_bt2\.sorted\.bam', file)
-    sampleName = str_search.group(1)
-    return sampleName
+    sample_name = str_search.group(1)
+    return sample_name
+
 
 if __name__ == '__main__':
-    topLevel()
-
-
-## pd.concat([list(a.values())[0], list(b.values())[0]])
+    main()

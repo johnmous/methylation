@@ -4,8 +4,7 @@ setup(
     name="methylator",
     packages=find_packages(),
     entry_points={
-        "console_scripts": [
-            "methylator = methylator.splitReads:topLevel"
-        ]
+        "console_scripts":
+            ["methylator = methylator.splitReads:main"]
     }
 )
