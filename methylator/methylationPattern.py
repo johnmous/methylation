@@ -29,6 +29,7 @@ def methyl_patterns(methylation, outpath, methyl_thr, number_CGs, sample_id, all
         read_pos_methyl.set_index(["Read", "Pos"], inplace=True)
         methyl_pattern = read_pos_methyl.unstack()
         methyl_pattern.reset_index(inplace=True)
+        methyl_pattern = methyl_pattern.sort_index(axis=1)
         methyl_pattern = methyl_pattern.drop(labels = "Read", axis = 1)
         methyl_pattern.columns = methyl_pattern.columns.droplevel()
 
@@ -81,6 +82,7 @@ def methyl_patterns(methylation, outpath, methyl_thr, number_CGs, sample_id, all
                    "partialPcnt"])
 
     return count_meth_class
+
 
 def count_states(meth_matrix, meth_state):
     """
