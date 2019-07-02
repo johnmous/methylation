@@ -3,6 +3,7 @@ import pysam
 import re
 import os
 import pandas as pd
+import math
 from pathlib import Path
 from typing import List
 from dataclasses import dataclass
@@ -37,7 +38,7 @@ def main(inpath, thr, outpath, ampltable):
     Path(outpath + '/methylator.txt').touch()
 
 
-def per_sample(samfile, thr, outpath, cpgfile, ampltable, sampleID):
+def per_sample(samfile, thr, outpath, cpgfile, ampltable, sample_id):
     """
     Accepts an alignment file, a methylation call file and list of amplicons
     For each amplicon, calculate a table with methylation pattern counts
@@ -83,39 +84,49 @@ def per_sample(samfile, thr, outpath, cpgfile, ampltable, sampleID):
         chrom = amplicon.chrom
         number_CGs = amplicon.nr_cg
         snp_coords = amplicon.snps_coord.split(";")
-
         # Extract the methylation table that concerns this amplicon region
         amplicon_meth = methylation.loc[(methylation["Chr"] == chrom) & (methylation["Pos"] >= start) & (methylation["Pos"] <= end)]
 
         index = []
         list_series = []
-        # Each amplicon region might have more than one SNPs
-        for snp_coord in snp_coords: # TODO: what if there are no SNPs
-            snp_coord = int(snp_coord)-1  # pysam uses zero-based indexing
-            # Create a dict of allele to records list from the alignment file
-            allele_to_read_record = base_to_reads(samFile, chrom, snp_coord)
-            # returns a flattened list
-            all_records = [record for list_records in allele_to_read_record.values() for record in list_records]
-            all_record_counts = len(all_records)
 
-            # Remove alleles with read count below threshold
-            records_to_keep = {}
-            for allele, records in allele_to_read_record.items():
-                if len(records) > float(thr) * all_record_counts:
-                    records_to_keep[allele] = records
+        # Check if amplicon has SNP
+        if '-' not in amplicon.snps_coord:
+            # Each amplicon region might have more than one SNPs
+            for snp_coord in snp_coords: # TODO: what if there are no SNPs
+                snp_coord = int(snp_coord)-1  # pysam uses zero-based indexing
+                # Create a dict of allele to records list from the alignment file
+                allele_to_read_record = base_to_reads(samFile, chrom, snp_coord)
+                # returns a flattened list
+                all_records = [record for list_records in allele_to_read_record.values() for record in list_records]
+                all_record_counts = len(all_records)
 
-            # Add All Alleles with all_records to dict
-            records_to_keep["Total"] = all_records
+                # Remove alleles with read count below threshold
+                records_to_keep = {}
+                for allele, records in allele_to_read_record.items():
+                    if len(records) > float(thr) * all_record_counts:
+                        records_to_keep[allele] = records
 
-            counts = phase_reads(records_to_keep, amplicon_meth, outpath, methylation_thr, number_CGs, sampleID, chrom, snp_coord)
-            for allele, series in counts.items():
-                index.append((sampleID, amplicon_name, "{0}:{1}".format(chrom, snp_coord+1), allele))
-                list_series.append(series)
-        index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
-        df = pd.DataFrame(list_series, index = index)
+                # Add All Alleles with all_records to dict
+                records_to_keep["Total"] = all_records
+
+                counts = phase_reads(records_to_keep, amplicon_meth, outpath, methylation_thr, number_CGs, sample_id, chrom, snp_coord)
+                for allele, series in counts.items():
+                    index.append((sample_id, amplicon_name, "{0}:{1}".format(chrom, snp_coord + 1), allele))
+                    list_series.append(series)
+            index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
+            df = pd.DataFrame(list_series, index = index)
+        
+        else:
+            series = methyl_patterns(amplicon_meth, outpath, methylation_thr, number_CGs, sample_id, "-", chrom, "-")
+            index.append((sample_id, amplicon_name, "-", "-"))
+            list_series.append(series)
+            index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
+            df = pd.DataFrame(list_series, index = index)
+
         if amplicon_name in amplicon_to_df:
             raise Exception("Amplicon name: {} is present twice. Check your ampltable and make "
-                            "sure amplicon name is unique".format(amplicon_name))
+                            "sure amplicon names are unique".format(amplicon_name))
         amplicon_to_df[amplicon_name] = df
     return(amplicon_to_df)
 
