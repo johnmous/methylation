@@ -1,6 +1,3 @@
-## Title: Group reads based on heterozygous SNPs locations. Each group of reads will be placed in a separate BAM file
-## Author: I. Moustakas, i.moustakas@lumc.nl
-
 import click
 import pysam
 import re
@@ -37,7 +34,7 @@ def main(inpath, thr, outpath, ampltable):
     for ampl, d in ampl_to_df.items():
         pd.concat(d).to_csv("{0}/{1}.tsv".format(outpath, ampl), sep ="\t", header=True)
         pd.concat(d).to_excel("{0}/{1}.xls".format(outpath, ampl))
-    # Create an empty file to signal the end of script for snakemake
+    # Create an empty file to signal the end of script execution for snakemake
     Path(outpath + '/methylator.txt').touch()
 
 
