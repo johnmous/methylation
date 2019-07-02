@@ -4,11 +4,10 @@ import re
 import os
 import pandas as pd
 from pathlib import Path
-
 from typing import List
 from dataclasses import dataclass
-from .methylationPattern import methylPatterns
-
+# from .methylationPattern import methyl_patterns
+from methylationPattern import methyl_patterns
 
 @click.command()
 @click.option('--inpath', type=click.Path(exists=True, readable=True), required=True, help='Directory with CpG and alignment files files')
@@ -91,7 +90,7 @@ def per_sample(samfile, thr, outpath, cpgfile, ampltable, sampleID):
         index = []
         list_series = []
         # Each amplicon region might have more than one SNPs
-        for snp_coord in snp_coords:
+        for snp_coord in snp_coords: # TODO: what if there are no SNPs
             snp_coord = int(snp_coord)-1  # pysam uses zero-based indexing
             # Create a dict of allele to records list from the alignment file
             allele_to_read_record = base_to_reads(samFile, chrom, snp_coord)
@@ -114,6 +113,9 @@ def per_sample(samfile, thr, outpath, cpgfile, ampltable, sampleID):
                 list_series.append(series)
         index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
         df = pd.DataFrame(list_series, index = index)
+        if amplicon_name in amplicon_to_df:
+            raise Exception("Amplicon name: {} is present twice. Check your ampltable and make "
+                            "sure amplicon name is unique".format(amplicon_name))
         amplicon_to_df[amplicon_name] = df
     return(amplicon_to_df)
 
@@ -196,7 +198,7 @@ def phase_reads(records_to_keep, methylation, outpath, methyl_thr, number_CGs, s
     ## Loop over alleles, phase reads
     for allele, records in records_to_keep.items():
         methylation_phased = methylation[methylation["Read"].isin(records)]
-        counts_per_class = methylPatterns(methylation_phased, outpath, methyl_thr, number_CGs, sample_id, allele, chrom, snp_coord)
+        counts_per_class = methyl_patterns(methylation_phased, outpath, methyl_thr, number_CGs, sample_id, allele, chrom, snp_coord)
         allele_to_counts[allele] = counts_per_class
 
     return allele_to_counts
