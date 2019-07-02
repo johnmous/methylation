@@ -103,12 +103,14 @@ def per_sample(samfile, thr, outpath, cpgfile, ampltable, sample_id):
 
                 # Remove alleles with read count below threshold
                 records_to_keep = {}
+                all_records_to_keep = []
                 for allele, records in allele_to_read_record.items():
                     if len(records) > float(thr) * all_record_counts:
                         records_to_keep[allele] = records
+                        all_records_to_keep.extend(records)
 
                 # Add All Alleles with all_records to dict
-                records_to_keep["Total"] = all_records
+                records_to_keep["Total"] = all_records_to_keep
 
                 counts = phase_reads(records_to_keep, amplicon_meth, outpath, methylation_thr, number_CGs, sample_id, chrom, snp_coord)
                 for allele, series in counts.items():
@@ -116,7 +118,7 @@ def per_sample(samfile, thr, outpath, cpgfile, ampltable, sample_id):
                     list_series.append(series)
             index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
             df = pd.DataFrame(list_series, index = index)
-        
+
         else:
             series = methyl_patterns(amplicon_meth, outpath, methylation_thr, number_CGs, sample_id, "-", chrom, "-")
             index.append((sample_id, amplicon_name, "-", "-"))
