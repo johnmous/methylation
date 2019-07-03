@@ -2,22 +2,23 @@ import pandas as pd
 from pathlib import Path
 
 
-def methyl_patterns(methylation, outpath, methyl_thr, number_CGs, sample_id, allele, chrom, snp_coord):
+def methyl_patterns(methyl_extr, outpath, methyl_thr, number_CGs, sample_id, allele, chrom, snp_coord):
     """
     Separate reads in three categories: Methylated , unmethylated, partially methylated according to the number
     of CpGs that are methyalted
-    :param methylation: pandas df with columns "Read", "MethylStatus", "Chr", "Pos", "Zz". This is the output of bismark_methylation_extractor
+    :param methyl_extr: pandas df with columns "Read", "MethylStatus", "Chr", "Pos", "Zz". This is the output of bismark_methylation_extractor
     :param outpath: path to save the table with the methylation patterns
-    :param methyl_thr: an integer to separate a
+    :param: number_CGs: Number of CGs in the amplicon
+    :param methyl_thr: Integer to subtract from number_CGs to set threshold from mostly methylated
     :return: A pandas.Series with read counts and percentages for the three methylation categories
     """
 
     # if records for amplicon
-    if len(methylation.index)>0:
+    if len(methyl_extr.index)>0:
 
         # Get all methylation positions in the amplicon
-        meth_pos_counts = methylation["Pos"].value_counts()
-        read_pos_methyl = methylation[["Read", "Pos", "MethylStatus"]]
+        meth_pos_counts = methyl_extr["Pos"].value_counts()
+        read_pos_methyl = methyl_extr[["Read", "Pos", "MethylStatus"]]
         read_count = len(read_pos_methyl["Read"].unique())
 
         # Keep only meth posistions with counts in at least 1% of all reads in amplicon
@@ -92,5 +93,3 @@ def count_states(meth_matrix, meth_state):
     patterns = meth_matrix.drop(labels="counts", axis=1)
     counts = patterns.apply(func = lambda x: sum(x == meth_state), axis = 1)
     return counts
-
-

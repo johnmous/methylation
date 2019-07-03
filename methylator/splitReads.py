@@ -3,12 +3,12 @@ import pysam
 import re
 import os
 import pandas as pd
-import math
 from pathlib import Path
 from typing import List
 from dataclasses import dataclass
 # from .methylationPattern import methyl_patterns
 from methylationPattern import methyl_patterns
+
 
 @click.command()
 @click.option('--inpath', type=click.Path(exists=True, readable=True), required=True, help='Directory with CpG and alignment files files')
@@ -30,6 +30,7 @@ def main(inpath, thr, outpath, ampltable):
                 ampl_to_df[ampl] = [d]
             else:
                 ampl_to_df[ampl].append(d)
+
     # One table per amplicon
     for ampl, d in ampl_to_df.items():
         pd.concat(d).to_csv("{0}/{1}.tsv".format(outpath, ampl), sep ="\t", header=True)
@@ -109,9 +110,8 @@ def per_sample(samfile, thr, outpath, cpgfile, ampltable, sample_id):
                         records_to_keep[allele] = records
                         all_records_to_keep.extend(records)
 
-                # Add All Alleles with all_records to dict
+                # Add all alleles with all_records_to_keep to dict
                 records_to_keep["Total"] = all_records_to_keep
-
                 counts = phase_reads(records_to_keep, amplicon_meth, outpath, methylation_thr, number_CGs, sample_id, chrom, snp_coord)
                 for allele, series in counts.items():
                     index.append((sample_id, amplicon_name, "{0}:{1}".format(chrom, snp_coord + 1), allele))
@@ -143,17 +143,17 @@ def base_to_reads(sam_file, chr, pos):
     """
     pileups = sam_file.pileup(chr, pos, max_depth=30000)
 
-    base_to_read_record = {}
+    allele_to_read_record = {}
     for pileup_col in pileups:
         for pileup_read in pileup_col.pileups:
             if not pileup_read.is_del and not pileup_read.is_refskip and pileup_col.pos == pos:
                 aln = pileup_read.alignment
                 base = aln.query_sequence[pileup_read.query_position]
-                if base not in base_to_read_record:
-                    base_to_read_record[base] = [aln.query_name]
+                if base not in allele_to_read_record:
+                    allele_to_read_record[base] = [aln.query_name]
                 else:
-                    base_to_read_record[base].append(aln.query_name)
-    return(base_to_read_record)
+                    allele_to_read_record[base].append(aln.query_name)
+    return(allele_to_read_record)
 
 
 # A class to hold info about an amplicon
@@ -176,9 +176,9 @@ def read_amplicon(ampltable) -> List[Amplicon]:
     :param methylation:
     :return:
     """
-    ## Load the amplicon table
-    amplicons = pd.read_csv(ampltable, sep="\t")
 
+    # Load the amplicon table, loop over rows
+    amplicons = pd.read_csv(ampltable, sep="\t")
     amplList = []
     for index, row in amplicons.iterrows():
         name = row["Name"]
