@@ -6,8 +6,8 @@ import pandas as pd
 from pathlib import Path
 from typing import List
 from dataclasses import dataclass
-# from .methylationPattern import methyl_patterns
-from methylationPattern import methyl_patterns
+from .methylationPattern import methyl_patterns
+# from methylationPattern import methyl_patterns
 
 
 @click.command()
