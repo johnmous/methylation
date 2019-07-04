@@ -37,7 +37,8 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, number_CGs, sample_id, all
         # Fill in NaN with asteriscs (NaN in the case methylation site not on all reads)
         methyl_pattern = methyl_pattern.fillna("*")
         # Collapses identical methylation patterns together and adds  column with the count for each pattern
-        collapsed_counted_patterns = methyl_pattern.groupby(methyl_pattern.columns.tolist()).size().reset_index().rename(columns={0:'counts'})
+        collapsed_counted_patterns = methyl_pattern.groupby(
+            methyl_pattern.columns.tolist()).size().reset_index().rename(columns={0:'counts'})
         # totalMethPos = methyl_pattern.shape[1]
 
         # Count the per read methylation states and save in a separate column
@@ -48,7 +49,8 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, number_CGs, sample_id, all
         # Save in table
         p = Path(outpath + "/perSample/")
         p.mkdir( exist_ok=True)
-        collapsed_counted_patterns.to_csv("{0}/perSample/{1}_{2}_{3}.{4}.tsv".format(outpath, sample_id, chrom, snp_coord, allele), sep ="\t", header=True)
+        collapsed_counted_patterns.to_csv("{0}/perSample/{1}_{2}_{3}.{4}.tsv".
+                                          format(outpath, sample_id, chrom, snp_coord, allele), sep ="\t", header=True)
 
         # Splits the methylation patterns in 3 categories:
         # Mostly methylated (meth >= totalMethPos-methylThr)
