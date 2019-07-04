@@ -41,6 +41,6 @@ number of
 methylated CpGs >= nr_CG - methyl_thr, then the read is methylated. If the 
 number of methylated CpGs <=  methyl_thr the read is unmethylated. The rest 
 are classified as partially methylated.
-* **snps_coords** is an integer used to provide the location(s) of the 
+* **snps_coord** is an integer used to provide the location(s) of the 
 heterozygous SNP(s) on which the reads are phased. If more than one, they 
 should be separated with **;** 
