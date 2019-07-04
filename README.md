@@ -34,11 +34,11 @@ in the following example:
 |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | H19 | chr11 |	1999754| 2000063 | neg | 310| 23 | 3 | 1999845;1999934 |
 
-Most of the fields are self explanatory. 
+Most of the fields are self explanatory. The rest are as:
 * **nr_CG** is an integer, the number of CpGs in the amplicon. 
 * **methyl_thr** is an integer used to classify the reads as follows: If the 
 number of 
-methylated CpGs >= nr_CG-methyl_thr, then the read is methylated. If the 
+methylated CpGs >= nr_CG - methyl_thr, then the read is methylated. If the 
 number of methylated CpGs <=  methyl_thr the read is unmethylated. The rest 
 are classified as partially methylated.
 * **snps_coords** is an integer used to provide the location(s) of the 
