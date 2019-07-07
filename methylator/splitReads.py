@@ -237,7 +237,7 @@ def sample_name(file):
     Expects full path of a CpG file created by bismark
     """
     # str_search = re.search('.+/CpG_OB_(.+)_bismark.+', file)
-    str_search = re.search('.+/(.+)_bismark_bt2\.sorted\.bam', file)
+    str_search = re.search('.+/(.+)_bismark_(bt2|hisat2)\.sorted\.bam', file)
     sample_name = str_search.group(1)
     return sample_name
 
