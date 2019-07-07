@@ -27,8 +27,10 @@ def main(inpath, thr, outpath, ampltable):
     ampl_to_df = {}
     for file in alignment_files:
         sample_id = sample_name(str(file))
-        cpg_file = inpath + "/CpG_OB_" + sample_id + "_bismark_bt2.sorted.txt.gz"
-        df = per_sample(file, thr, outpath, cpg_file, ampltable, sample_id)
+        cpg_file = in_path.glob("CpG_OB_" + sample_id + "_bismark_*")
+        cpg_path = inpath + "/" + cpg_file
+       # cpg_file = inpath + "/CpG_OB_" + sample_id + "_bismark_bt2.sorted.txt.gz"
+        df = per_sample(file, thr, outpath, cpg_path, ampltable, sample_id)
         for ampl, d in df.items():
             if ampl not in ampl_to_df:
                 ampl_to_df[ampl] = [d]
