@@ -27,7 +27,8 @@ def main(inpath, thr, outpath, ampltable):
     ampl_to_df = {}
     for file in alignment_files:
         sample_id = sample_name(str(file))
-        cpg_file = inpath + "/CpG_OB_" + sample_id + "_bismark_bt2.sorted.txt.gz"
+        cpg_file = str(list(in_path.glob("CpG_OB_" + sample_id + "_bismark_*"))[0])
+       # cpg_file = inpath + "/CpG_OB_" + sample_id + "_bismark_bt2.sorted.txt.gz"
         df = per_sample(file, thr, outpath, cpg_file, ampltable, sample_id)
         for ampl, d in df.items():
             if ampl not in ampl_to_df:
@@ -237,7 +238,7 @@ def sample_name(file):
     Expects full path of a CpG file created by bismark
     """
     # str_search = re.search('.+/CpG_OB_(.+)_bismark.+', file)
-    str_search = re.search('.+/(.+)_bismark_bt2\.sorted\.bam', file)
+    str_search = re.search('.+/(.+)_bismark_(bt2|hisat2)\.sorted\.bam', file)
     sample_name = str_search.group(1)
     return sample_name
 
