@@ -67,9 +67,10 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, number_CGs, sample_id, all
         count_meth_class = pd.Series(
             [read_count, methylated, methyl_pcnt, unmethylated, unmethyl_pcnt, patrially_meth, partial_pcnt],
             index=["totalReads",
-                   "methylated_reads(mGCs>={})".format(number_CGs - methyl_thr),
+                   "methylated_reads(mCpGs>={})".format(number_CGs -
+                                                       methyl_thr),
                    "methylPcnt",
-                   "unmethylated_reads(mGCs<={})".format(methyl_thr),
+                   "unmethylated_reads(mCpGs<={})".format(methyl_thr),
                    "unmethylPcnt",
                    "patriallyMeth_reads",
                    "partialPcnt"])
@@ -77,9 +78,10 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, number_CGs, sample_id, all
         count_meth_class = pd.Series(
             [0, 0, 0, 0, 0, 0, 0],
             index=["totalReads",
-                   "methylated_reads(mGCs>={})".format(number_CGs - methyl_thr),
+                   "methylated_reads(mCpGs>={})".format(number_CGs -
+                                                       methyl_thr),
                    "methylPcnt",
-                   "unmethylated_reads(mGCs<={})".format(methyl_thr),
+                   "unmethylated_reads(mCpGs<={})".format(methyl_thr),
                    "unmethylPcnt",
                    "patriallyMeth_reads",
                    "partialPcnt"])
