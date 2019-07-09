@@ -2,7 +2,7 @@ import pandas as pd
 from pathlib import Path
 
 
-def methyl_patterns(methyl_extr, outpath, methyl_thr, number_CGs, sample_id, allele, chrom, snp_coord):
+def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, allele, chrom, snp_coord):
     """
     Separate reads in three categories: Methylated , unmethylated, partially methylated according to the number
     of CpGs that are methyalted
@@ -58,7 +58,8 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, number_CGs, sample_id, all
         # Else patrially_meth
         # Count reads in each category
         # Returns a Series
-        methylated = sum(collapsed_counted_patterns[collapsed_counted_patterns["methStatesCount"] >= (number_CGs - methyl_thr)]["counts"])
+        methylated = sum(collapsed_counted_patterns[
+                             collapsed_counted_patterns["methStatesCount"] >= (upper_mCG_thr)]["counts"])
         unmethylated = sum(collapsed_counted_patterns[collapsed_counted_patterns["methStatesCount"] <= methyl_thr]["counts"])
         patrially_meth = read_count - methylated - unmethylated
         methyl_pcnt = methylated / read_count
@@ -67,8 +68,7 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, number_CGs, sample_id, all
         count_meth_class = pd.Series(
             [read_count, methylated, methyl_pcnt, unmethylated, unmethyl_pcnt, patrially_meth, partial_pcnt],
             index=["totalReads",
-                   "methylated_reads(mCpGs>={})".format(number_CGs -
-                                                       methyl_thr),
+                   "methylated_reads(mCpGs>={})".format(upper_mCG_thr),
                    "methylPcnt",
                    "unmethylated_reads(mCpGs<={})".format(methyl_thr),
                    "unmethylPcnt",
@@ -78,8 +78,7 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, number_CGs, sample_id, all
         count_meth_class = pd.Series(
             [0, 0, 0, 0, 0, 0, 0],
             index=["totalReads",
-                   "methylated_reads(mCpGs>={})".format(number_CGs -
-                                                       methyl_thr),
+                   "methylated_reads(mCpGs>={})".format(upper_mCG_thr),
                    "methylPcnt",
                    "unmethylated_reads(mCpGs<={})".format(methyl_thr),
                    "unmethylPcnt",

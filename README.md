@@ -19,7 +19,8 @@ Options:
 | --inpath | PATH | Directory with CpG and alignment files files  [required] |
 | --thr | FLOAT | Threshold for allele frequency bellow which an allele is ignored [required]|
 | --outpath | PATH | Path to place the output  [required] |
-| --ampltable | PATH | Tab separated file with amplicon locations  [required] |
+| --ampltable | PATH | Tab separated file with amplicon attributes  
+[required] |
 
 * **--inpath** a directory is provided where the output the alignment files 
 and the methylation calls is placed. Script will first try to match files with glob
@@ -30,17 +31,16 @@ and the methylation calls is placed. Script will first try to match files with g
 * **--ampltable** a tab separated file is provided, with the fields as shown
 in the following example: 
 
-| Name | Chr | start | end	| strand | size_bp | nr_CG | methyl_thr | snps_coord |
+| Name | Chr | start | end	| strand | size_bp | upper_mCG_thr | low_mCG_thr | 
+snps_coord |
 |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| H19 | chr11 |	1999754| 2000063 | neg | 310| 23 | 3 | 1999845;1999934 |
+| H19 | chr11 |	1999754| 2000063 | neg | 310| 20 | 3 | 1999845;1999934 |
 
 Most of the fields are self explanatory. The rest are as:
-* **nr_CG** is an integer, the number of CpGs in the amplicon. 
-* **methyl_thr** is an integer used to classify the reads as follows: If the 
-number of 
-methylated CpGs >= nr_CG - methyl_thr, then the read is methylated. If the 
-number of methylated CpGs <=  methyl_thr the read is unmethylated. The rest 
-are classified as partially methylated.
+* **upper_mCG_CG** is an integer. If a read has this number, or more, CpGs 
+methylated, it is classified as methylated. 
+* **low_mCG_thr** is an integer. If a read has this number, or less, CpGs 
+methylated, it is classified as unmethylated.
 * **snps_coord** is an integer used to provide the location(s) of the 
 heterozygous SNP(s) on which the reads are phased. If more than one, they 
 should be separated with **;** 

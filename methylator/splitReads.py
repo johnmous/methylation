@@ -199,19 +199,19 @@ def read_amplicon(ampltable) -> List[Amplicon]:
         start = row["start"]
         end = row["end"]
         strand = row["strand"]
-        nr_cg = row["nr_CG"]
-        methyl_thr = row["methyl_thr"]
+        upper_mCG_thr = row["upper_mCG_thr"]
+        low_mCG_thr = row["low_mCG_thr"]
         snp_coord = str(row["snps_coord"])
         # row: List[things]
         # amplication = Amplicon(*row)  <- Amplicon(row[0], row[1] .... )
         # row: Dict[str, things]
         # amplicon = Amplicon(**row) <- Amplicon(key=row[key], key2=row[key2]...)
-        amplicon = Amplicon(name, chrom, start, end, strand, nr_cg, methyl_thr, snp_coord)
+        amplicon = Amplicon(name, chrom, start, end, strand, upper_mCG_thr, low_mCG_thr, snp_coord)
         amplList.append(amplicon)
     return amplList
 
 
-def phase_reads(records_to_keep, methylation, outpath, methyl_thr, number_CGs, sample_id, chrom, snp_coord):
+def phase_reads(records_to_keep, methylation, outpath, low_mCG_thr, upper_mCG_thr, sample_id, chrom, snp_coord):
     """
     Provided a heterozygous SNP is present, phase reads according to SNP.
     Apply methylPatterns on split dataset
@@ -225,7 +225,7 @@ def phase_reads(records_to_keep, methylation, outpath, methyl_thr, number_CGs, s
     for allele, records in records_to_keep.items():
         methylation_phased = methylation[methylation["Read"].isin(records)]
         counts_per_class = methyl_patterns(methylation_phased, outpath,
-                                           methyl_thr, number_CGs, sample_id, allele, chrom, snp_coord)
+                                           low_mCG_thr, upper_mCG_thr, sample_id, allele, chrom, snp_coord)
         allele_to_counts[allele] = counts_per_class
 
     return allele_to_counts
