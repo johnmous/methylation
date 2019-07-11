@@ -27,9 +27,10 @@ def main(inpath, thr, outpath, ampltable):
     ampl_to_df = {}
     for file in alignment_files:
         sample_id = sample_name(str(file))
-        cpg_file = str(list(in_path.glob("CpG_OB_" + sample_id + "_bismark_*"))[0])
+        # cpg_file = str(list(in_path.glob("CpG*" + sample_id +
+        #                                  "_bismark_*"))[0])
        # cpg_file = inpath + "/CpG_OB_" + sample_id + "_bismark_bt2.sorted.txt.gz"
-        df = per_sample(file, thr, outpath, cpg_file, ampltable, sample_id)
+        df = per_sample(file, thr, in_path, outpath, ampltable, sample_id)
         for ampl, d in df.items():
             if ampl not in ampl_to_df:
                 ampl_to_df[ampl] = [d]
@@ -45,7 +46,7 @@ def main(inpath, thr, outpath, ampltable):
     Path(outpath + '/methylator.txt').touch()
 
 
-def per_sample(samfile, thr, outpath, cpgfile, ampltable, sample_id):
+def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
     """
     Accepts an alignment file, a methylation call file and list of amplicons
     For each amplicon, calculate a table with methylation pattern counts
@@ -65,19 +66,23 @@ def per_sample(samfile, thr, outpath, cpgfile, ampltable, sample_id):
     # Load methylation call data. Forward and reverse strand are in two
     # separate files (OB and OT).
     # Combine them in one df. If file does not exist, create empty DF
-    if os.path.isfile(cpgfile):
-        methylationOB = pd.read_csv(cpgfile, sep="\t", skiprows=1,
+    cpg_OB_file = list(in_path.glob("CpG_OB*" + sample_id + "_bismark_*"))
+    cpg_OT_file = list(in_path.glob("CpG_OT*" + sample_id + "_bismark_*"))
+    print(sample_id)
+    # List should contain one file exactly
+    if len(cpg_OB_file) == 1:
+        cpg_string = str(cpg_OB_file[0])
+        methylationOB = pd.read_csv(cpg_string, sep="\t", skiprows=1,
                                     header=None, names=["Read", "MethylStatus", "Chr", "Pos", "Zz"])
     else:
         methylationOB = pd.DataFrame(columns=["Read", "MethylStatus", "Chr", "Pos", "Zz"])
-    cpgfileOT = cpgfile.replace("CpG_OB_", "CpG_OT_")
-    if os.path.isfile(cpgfileOT):
-        methylationOT = pd.read_csv(cpgfileOT, sep="\t", skiprows=1,
+    if len(cpg_OT_file) == 1:
+        cpg_string = str(cpg_OT_file[0])
+        methylationOT = pd.read_csv(cpg_string, sep="\t", skiprows=1,
                                     header=None, names=["Read", "MethylStatus", "Chr", "Pos", "Zz"])
         methylation = pd.concat([methylationOB, methylationOT])
     else:
         methylation = methylationOB
-
     # Read alignment file, create a dict of allele to records list
     samFile = pysam.AlignmentFile(samfile, 'rb')
 
@@ -126,16 +131,22 @@ def per_sample(samfile, thr, outpath, cpgfile, ampltable, sample_id):
 
                 # Loop over alleles
                 allele_to_counts = {}
-                plot_data_Frames = []
+                data_frames_plots = []
                 ## Loop over alleles, phase reads
                 for allele, records in records_to_keep.items():
-                    methylation_phased = methylation[
-                        methylation["Read"].isin(records)]
+                    methylation_phased = methylation[methylation["Read"].isin(records)]
                     methyl_DFs = methyl_patterns(methylation_phased, outpath,
                                                  low_mCG_thr, upper_mCG_thr,
                                                  sample_id, allele, chrom,
                                                  snp_coord)
                     allele_to_counts[allele] = methyl_DFs.count_meth_class
+                    data_frames_plots.append(methyl_DFs.total_counts_methyl)
+                d = pd.concat(data_frames_plots, axis=1, join="outer",
+                              keys="methStatesCount")
+                d.columns = d.columns.droplevel()
+                d.reset_index(inplace=True)
+                d.fillna(value=0, inplace=True)
+                print(d)
                 for allele, series in allele_to_counts.items():
                     index.append((sample_id, amplicon_name, "{0}:{1}".format(chrom, snp_coord + 1), allele))
                     list_series.append(series)
@@ -144,7 +155,7 @@ def per_sample(samfile, thr, outpath, cpgfile, ampltable, sample_id):
 
         else:
             series = methyl_patterns(amplicon_meth, outpath,
-                                     methylation_thr, number_CGs, sample_id, "-", chrom, "-")
+                                     low_mCG_thr, upper_mCG_thr, sample_id, "-", chrom, "-")
             index.append((sample_id, amplicon_name, "-", "-"))
             list_series.append(series)
             index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
