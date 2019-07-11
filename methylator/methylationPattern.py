@@ -1,6 +1,13 @@
 import pandas as pd
 from pathlib import Path
+from dataclasses import dataclass
+import numpy as np
 
+# Class to save the result of methyl_patterns
+@dataclass
+class MethylationDFs:
+    count_meth_class: pd.Series
+    total_counts_methyl: pd.DataFrame
 
 def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, allele, chrom, snp_coord):
     """
@@ -51,6 +58,10 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
         p.mkdir( exist_ok=True)
         collapsed_counted_patterns.to_csv("{0}/perSample/{1}_{2}_{3}.{4}.tsv".
                                           format(outpath, sample_id, chrom, snp_coord, allele), sep ="\t", header=True)
+        total_counts_methyl = pd.pivot_table(collapsed_counted_patterns,
+                                    values="counts",
+                            index="methStatesCount", aggfunc=np.sum)
+        total_counts_methyl.rename(columns = {"counts": allele}, inplace=True)
 
         # Splits the methylation patterns in 3 categories:
         # Mostly methylated (meth >= totalMethPos-methylThr)
@@ -85,7 +96,9 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
                    "patriallyMeth_reads",
                    "partialPcnt"])
 
-    return count_meth_class
+    methyl_DFs = MethylationDFs(count_meth_class, total_counts_methyl)
+
+    return methyl_DFs
 
 
 def count_states(meth_matrix, meth_state):
