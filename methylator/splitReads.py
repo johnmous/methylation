@@ -6,7 +6,7 @@ import pandas as pd
 from pathlib import Path
 from typing import List
 from dataclasses import dataclass
-from methylationPattern import methyl_patterns
+from .methylationPattern import methyl_patterns
 
 
 @click.command()
@@ -89,10 +89,10 @@ def per_sample(samfile, thr, outpath, cpgfile, ampltable, sample_id):
     for amplicon in ampl_list:
         start = amplicon.start
         end = amplicon.end
-        methylation_thr = amplicon.methyl_thr
+        low_mCG_thr = amplicon.low_mCG_thr
         amplicon_name = amplicon.name
         chrom = amplicon.chrom
-        number_CGs = amplicon.nr_cg
+        upper_mCG_thr = amplicon.upper_mCG_thr
         snp_coords = amplicon.snps_coord.split(";")
         # Extract the methylation table that concerns this amplicon region
         amplicon_meth = methylation.loc[(methylation["Chr"] == chrom) & (
@@ -123,9 +123,20 @@ def per_sample(samfile, thr, outpath, cpgfile, ampltable, sample_id):
 
                 # Add all alleles with all_records_to_keep to dict
                 records_to_keep["Total"] = all_records_to_keep
-                counts = phase_reads(records_to_keep, amplicon_meth,
-                                     outpath, methylation_thr, number_CGs, sample_id, chrom, snp_coord)
-                for allele, series in counts.items():
+
+                # Loop over alleles
+                allele_to_counts = {}
+                plot_data_Frames = []
+                ## Loop over alleles, phase reads
+                for allele, records in records_to_keep.items():
+                    methylation_phased = methylation[
+                        methylation["Read"].isin(records)]
+                    methyl_DFs = methyl_patterns(methylation_phased, outpath,
+                                                 low_mCG_thr, upper_mCG_thr,
+                                                 sample_id, allele, chrom,
+                                                 snp_coord)
+                    allele_to_counts[allele] = methyl_DFs.count_meth_class
+                for allele, series in allele_to_counts.items():
                     index.append((sample_id, amplicon_name, "{0}:{1}".format(chrom, snp_coord + 1), allele))
                     list_series.append(series)
             index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
@@ -178,8 +189,8 @@ class Amplicon:
     start: int
     end: int
     strand: str
-    nr_cg: int
-    methyl_thr: int
+    upper_mCG_thr: int
+    low_mCG_thr: int
     snps_coord: str
 
 
