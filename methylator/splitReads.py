@@ -6,7 +6,7 @@ import pandas as pd
 from pathlib import Path
 from typing import List
 from dataclasses import dataclass
-from .methylationPattern import methyl_patterns
+from methylationPattern import methyl_patterns
 
 
 @click.command()
@@ -221,27 +221,6 @@ def read_amplicon(ampltable) -> List[Amplicon]:
         amplicon = Amplicon(name, chrom, start, end, strand, upper_mCG_thr, low_mCG_thr, snp_coord)
         amplList.append(amplicon)
     return amplList
-
-
-def phase_reads(records_to_keep, methylation, outpath, low_mCG_thr, upper_mCG_thr, sample_id, chrom, snp_coord):
-    """
-    Provided a heterozygous SNP is present, phase reads according to SNP.
-    Apply methylPatterns on split dataset
-    :param outpath:
-    :param cpgfile:
-    :return: {allele => countsDF}
-    """
-
-    allele_to_counts = {}
-    plot_data_Frames = []
-    ## Loop over alleles, phase reads
-    for allele, records in records_to_keep.items():
-        methylation_phased = methylation[methylation["Read"].isin(records)]
-        methyl_DFs = methyl_patterns(methylation_phased, outpath,
-                                           low_mCG_thr, upper_mCG_thr, sample_id, allele, chrom, snp_coord)
-        allele_to_counts[allele] = methyl_DFs.count_meth_class
-
-    return allele_to_counts
 
 
 def sample_name(file):
