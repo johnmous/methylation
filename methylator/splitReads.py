@@ -6,6 +6,7 @@ import pandas as pd
 from pathlib import Path
 from typing import List
 from dataclasses import dataclass
+import matplotlib.pyplot as plt
 from methylationPattern import methyl_patterns
 
 
@@ -62,6 +63,8 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
     # Create output directory
     if not os.path.exists(outpath):
         os.makedirs(outpath)
+    if not os.path.exists(outpath + "/figures"):
+        os.makedirs(outpath+ "/figures")
 
     # Load methylation call data. Forward and reverse strand are in two
     # separate files (OB and OT).
@@ -146,7 +149,30 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                 d.columns = d.columns.droplevel()
                 d.reset_index(inplace=True)
                 d.fillna(value=0, inplace=True)
-                print(d)
+
+                # Make plots
+                if len(d.index) > 0:
+                    fig, ax = plt.subplots()
+                    ax.plot("methStatesCount", "Total", data=d, label="Total",
+                            color="black", linestyle=":")
+                    d_alleles = d.drop(labels=["methStatesCount", "Total"], axis=1)
+
+                    # Each allele has a fixed color
+                    colors = {"C": "blue", "T": "red", "G": "yellow", "A": "green"}
+                    for allele in list(d_alleles.columns):
+                        ax.scatter(x=d["methStatesCount"], y=d[allele], label=allele,
+                                   color=colors[allele])
+                    ax.legend()
+                    ax.grid(True)
+                    ax.axvline(3, color="black", linestyle="--")
+                    ax.axvline(20, color="black", linestyle="--")
+                    plt.title(sample_id)
+                    fig.savefig("{}/figures/{}.{}.{}.pdf".format(outpath,
+                                                           sample_id, chrom,
+                                                           snp_coord),
+                                bbox_inches='tight')
+                    plt.close()
+
                 for allele, series in allele_to_counts.items():
                     index.append((sample_id, amplicon_name, "{0}:{1}".format(chrom, snp_coord + 1), allele))
                     list_series.append(series)

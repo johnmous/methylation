@@ -96,7 +96,6 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
                    "patriallyMeth_reads",
                    "partialPcnt"])
         total_counts_methyl = pd.DataFrame()
-
     methyl_DFs = MethylationDFs(count_meth_class, total_counts_methyl)
 
     return methyl_DFs
