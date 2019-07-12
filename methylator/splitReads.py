@@ -87,7 +87,6 @@ def main(inpath, thr, outpath, ampltable):
                             header=True)
         pd.concat(d).to_excel("{0}/{1}.xls".format(outpath, ampl))
     # Create an empty file to signal the end of script execution for snakemake
-    Path(outpath + '/methylator.txt').touch()
 
     # All plots per amplicon and snps and save in one PDF
     for ampl_snp, plot_data_list in ampl_snp_to_plot_data.items():
@@ -125,7 +124,7 @@ def main(inpath, thr, outpath, ampltable):
                                                    chrom, snp_coord))
                     plt.xlim(left=-1, right=25)
                 pdf.savefig(fig)
-
+    Path(outpath + '/methylator.txt').touch()
 
 def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
     """
