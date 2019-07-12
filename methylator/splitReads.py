@@ -7,8 +7,37 @@ from pathlib import Path
 from typing import List
 from dataclasses import dataclass
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 from methylationPattern import methyl_patterns
 
+
+@dataclass
+class Per_sample_data:
+    """
+    Save the per sample data:
+    A list with methylation data frames
+    A list with Plot_data objects
+    """
+    methylation_list: list
+    plot_list: list
+
+@dataclass
+class Plot_data:
+    """
+    Save data for plots
+    """
+    count_methyl_CpGs: pd.DataFrame
+    sample_id: str
+    amplicon: str
+    chrom: str
+    snp_coord: int
+    low_mCG_thr: int
+    upper_mCG_thr: int
+
+@dataclass
+class Methylation_data:
+    amplicon: str
+    data_frame: pd.DataFrame
 
 @click.command()
 @click.option('--inpath', type=click.Path(exists=True, readable=True),
@@ -26,25 +55,76 @@ def main(inpath, thr, outpath, ampltable):
     # Loop over samples, put the per sample output in a dict according to
     # the amplicon
     ampl_to_df = {}
+    ampl_snp_to_plot_data = {}
     for file in alignment_files:
         sample_id = sample_name(str(file))
-        # cpg_file = str(list(in_path.glob("CpG*" + sample_id +
-        #                                  "_bismark_*"))[0])
-       # cpg_file = inpath + "/CpG_OB_" + sample_id + "_bismark_bt2.sorted.txt.gz"
-        df = per_sample(file, thr, in_path, outpath, ampltable, sample_id)
-        for ampl, d in df.items():
-            if ampl not in ampl_to_df:
-                ampl_to_df[ampl] = [d]
-            else:
-                ampl_to_df[ampl].append(d)
+        per_sample_data = per_sample(file, thr, in_path, outpath, ampltable,
+                              sample_id)
 
-    # One table per amplicon
+        # Put the methylation tables in a dictionary, with amplicon names as
+        # key
+        methylation_data = per_sample_data.methylation_list
+        for plot_data in methylation_data:
+            if plot_data.amplicon not in ampl_to_df:
+                ampl_to_df[plot_data.amplicon] = [plot_data.data_frame]
+            else:
+                ampl_to_df[plot_data.amplicon].append(plot_data.data_frame)
+
+        # Put the plot data in a dictionary, amplicon names as key
+        plot_data_list = per_sample_data.plot_list
+        for plot_data in plot_data_list:
+            snp_to_plot_data = {}
+            ampl_snp = "{}.{}:{}".format(plot_data.amplicon, plot_data.chrom, \
+                                                     str(plot_data.snp_coord))
+            if ampl_snp not in ampl_snp_to_plot_data:
+                ampl_snp_to_plot_data[ampl_snp] = [plot_data]
+            else:
+                ampl_snp_to_plot_data[ampl_snp].append(plot_data)
+
+    # Write tables, per amplicon
     for ampl, d in ampl_to_df.items():
         pd.concat(d).to_csv("{0}/{1}.tsv".format(outpath, ampl), sep ="\t",
                             header=True)
         pd.concat(d).to_excel("{0}/{1}.xls".format(outpath, ampl))
     # Create an empty file to signal the end of script execution for snakemake
     Path(outpath + '/methylator.txt').touch()
+
+    # All plots per amplicon and snps and save in one PDF
+    for ampl_snp, plot_data_list in ampl_snp_to_plot_data.items():
+        print(ampl_snp)
+        # Make plots
+        with PdfPages("{}/plots/{}.pdf".format(outpath, ampl_snp)) as pdf:
+            for plot_data in plot_data_list:
+                count_methyl_CpcGs =  plot_data.count_methyl_CpGs
+                low_mCG_thr = plot_data.low_mCG_thr
+                upper_mCG_thr = plot_data.upper_mCG_thr
+                amplicon = plot_data.amplicon
+                chrom = plot_data.chrom
+                snp_coord = plot_data.snp_coord
+                sample_id = plot_data.sample_id
+                fig = plt.figure()
+                if len(count_methyl_CpcGs.index) > 0:
+                    ax = fig.add_subplot()
+                    ax.plot("methStatesCount", "Total", data=count_methyl_CpcGs,
+                            label="Total",
+                            color="black", linestyle=":")
+                    alleles = count_methyl_CpcGs.drop(
+                        labels=["methStatesCount", "Total"], axis=1)
+
+                    # Each allele has a fixed color
+                    colors = {"C": "blue", "T": "red", "G": "yellow", "A": "green"}
+                    for allele in list(alleles.columns):
+                        ax.scatter(x=count_methyl_CpcGs["methStatesCount"],
+                                   y=count_methyl_CpcGs[allele], label=allele,
+                                   color=colors[allele])
+                    ax.legend()
+                    ax.grid(True)
+                    ax.axvline(low_mCG_thr, color="black", linestyle="--")
+                    ax.axvline(upper_mCG_thr, color="black", linestyle="--")
+                    plt.title("{}_{}_{}:{}".format(amplicon, sample_id,
+                                                   chrom, snp_coord))
+                    plt.xlim(left=-1, right=25)
+                pdf.savefig(fig)
 
 
 def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
@@ -63,8 +143,8 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
     # Create output directory
     if not os.path.exists(outpath):
         os.makedirs(outpath)
-    if not os.path.exists(outpath + "/figures"):
-        os.makedirs(outpath+ "/figures")
+    if not os.path.exists(outpath + "/plots"):
+        os.makedirs(outpath+ "/plots")
 
     # Load methylation call data. Forward and reverse strand are in two
     # separate files (OB and OT).
@@ -90,9 +170,8 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
     samFile = pysam.AlignmentFile(samfile, 'rb')
 
     ampl_list = read_amplicon(ampltable)
-
-    amplicon_to_df = {}
-
+    methyl_data_list = []
+    plot_data_list = []
     # Loop over the list of amplicons
     for amplicon in ampl_list:
         start = amplicon.start
@@ -108,11 +187,10 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
 
         index = []
         list_series = []
-
         # Check if amplicon has SNP
         if '-' not in amplicon.snps_coord:
             # Each amplicon region might have more than one SNPs
-            for snp_coord in snp_coords: # TODO: what if there are no SNPs
+            for snp_coord in snp_coords:
                 snp_coord = int(snp_coord)-1  # pysam uses zero-based indexing
                 # Create a dict of allele to records list from the alignment file
                 allele_to_read_record = base_to_reads(samFile, chrom, snp_coord)
@@ -143,35 +221,16 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                                                  sample_id, allele, chrom,
                                                  snp_coord)
                     allele_to_counts[allele] = methyl_DFs.count_meth_class
-                    data_frames_plots.append(methyl_DFs.total_counts_methyl)
-                d = pd.concat(data_frames_plots, axis=1, join="outer",
+                    data_frames_plots.append(methyl_DFs.count_methyl_CpGs)
+                count_methyl_CpGs = pd.concat(data_frames_plots, axis=1, join="outer",
                               keys="methStatesCount")
-                d.columns = d.columns.droplevel()
-                d.reset_index(inplace=True)
-                d.fillna(value=0, inplace=True)
-
-                # Make plots
-                if len(d.index) > 0:
-                    fig, ax = plt.subplots()
-                    ax.plot("methStatesCount", "Total", data=d, label="Total",
-                            color="black", linestyle=":")
-                    d_alleles = d.drop(labels=["methStatesCount", "Total"], axis=1)
-
-                    # Each allele has a fixed color
-                    colors = {"C": "blue", "T": "red", "G": "yellow", "A": "green"}
-                    for allele in list(d_alleles.columns):
-                        ax.scatter(x=d["methStatesCount"], y=d[allele], label=allele,
-                                   color=colors[allele])
-                    ax.legend()
-                    ax.grid(True)
-                    ax.axvline(3, color="black", linestyle="--")
-                    ax.axvline(20, color="black", linestyle="--")
-                    plt.title(sample_id)
-                    fig.savefig("{}/figures/{}.{}.{}.pdf".format(outpath,
-                                                           sample_id, chrom,
-                                                           snp_coord),
-                                bbox_inches='tight')
-                    plt.close()
+                count_methyl_CpGs.columns = count_methyl_CpGs.columns.droplevel()
+                count_methyl_CpGs.reset_index(inplace=True)
+                count_methyl_CpGs.fillna(value=0, inplace=True)
+                plot_data = Plot_data(count_methyl_CpGs, sample_id, amplicon_name,
+                                      chrom, snp_coord, low_mCG_thr,
+                                      upper_mCG_thr)
+                plot_data_list.append(plot_data)
 
                 for allele, series in allele_to_counts.items():
                     index.append((sample_id, amplicon_name, "{0}:{1}".format(chrom, snp_coord + 1), allele))
@@ -186,12 +245,17 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
             list_series.append(series)
             index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
             df = pd.DataFrame(list_series, index = index)
+            # TODO: plot_data
 
-        if amplicon_name in amplicon_to_df:
-            raise Exception("Amplicon name: {} is present twice. Check your ampltable and make "
-                            "sure amplicon names are unique".format(amplicon_name))
-        amplicon_to_df[amplicon_name] = df
-    return(amplicon_to_df)
+        # if amplicon_name in amplicon_to_df:
+        #    raise Exception("Amplicon name: {} is present twice. Check your ampltable and make "
+        #                    "sure amplicon names are unique".format(
+        #                    amplicon_name))
+        # amplicon_to_df[amplicon_name] = df
+        methylation_data = Methylation_data(amplicon_name, df)
+        methyl_data_list.append(methylation_data)
+    per_sample_data = Per_sample_data(methyl_data_list, plot_data_list)
+    return(per_sample_data)
 
 
 def base_to_reads(sam_file, chr, pos):
