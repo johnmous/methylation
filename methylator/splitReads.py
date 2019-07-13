@@ -6,6 +6,8 @@ import pandas as pd
 from pathlib import Path
 from typing import List
 from dataclasses import dataclass
+import matplotlib
+matplotlib.use('PDF') 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from .methylationPattern import methyl_patterns
