@@ -8,7 +8,7 @@ from typing import List
 from dataclasses import dataclass
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from methylationPattern import methyl_patterns
+from .methylationPattern import methyl_patterns
 
 
 @dataclass
@@ -88,7 +88,7 @@ def main(inpath, thr, outpath, ampltable):
         pd.concat(d).to_excel("{0}/{1}.xls".format(outpath, ampl))
     # Create an empty file to signal the end of script execution for snakemake
 
-    # All plots per amplicon and snps and save in one PDF
+    # All plots per amplicon and snp and save in one PDF
     for ampl_snp, plot_data_list in ampl_snp_to_plot_data.items():
         print(ampl_snp)
         # Make plots
