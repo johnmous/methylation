@@ -39,6 +39,18 @@ class Methylation_data:
     amplicon: str
     data_frame: pd.DataFrame
 
+# A class to hold info about an amplicon
+@dataclass
+class Amplicon:
+    name: str
+    chrom: str
+    start: int
+    end: int
+    strand: str
+    upper_mCG_thr: int
+    low_mCG_thr: int
+    snps_coord: str
+
 @click.command()
 @click.option('--inpath', type=click.Path(exists=True, readable=True),
               required=True, help='Directory with CpG and alignment files files')
@@ -52,8 +64,7 @@ def main(inpath, thr, outpath, ampltable):
     in_path = Path(inpath)
     alignment_files = list(in_path.glob("*bam"))
 
-    # Loop over samples, put the per sample output in a dict according to
-    # the amplicon
+    # Loop over samples
     ampl_to_df = {}
     ampl_snp_to_plot_data = {}
     for file in alignment_files:
@@ -61,7 +72,7 @@ def main(inpath, thr, outpath, ampltable):
         per_sample_data = per_sample(file, thr, in_path, outpath, ampltable,
                               sample_id)
 
-        # Put the methylation tables in a dictionary, with amplicon names as
+        # Put the methylation tables in a dictionary, with amplicon name as
         # key
         methylation_data = per_sample_data.methylation_list
         for plot_data in methylation_data:
@@ -70,7 +81,7 @@ def main(inpath, thr, outpath, ampltable):
             else:
                 ampl_to_df[plot_data.amplicon].append(plot_data.data_frame)
 
-        # Put the plot data in a dictionary, amplicon names as key
+        # Put the plot data in a dictionary, amplicon name as key
         plot_data_list = per_sample_data.plot_list
         for plot_data in plot_data_list:
             snp_to_plot_data = {}
@@ -86,7 +97,6 @@ def main(inpath, thr, outpath, ampltable):
         pd.concat(d).to_csv("{0}/{1}.tsv".format(outpath, ampl), sep ="\t",
                             header=True)
         pd.concat(d).to_excel("{0}/{1}.xls".format(outpath, ampl))
-    # Create an empty file to signal the end of script execution for snakemake
 
     # All plots per amplicon and snp and save in one PDF
     for ampl_snp, plot_data_list in ampl_snp_to_plot_data.items():
@@ -124,6 +134,8 @@ def main(inpath, thr, outpath, ampltable):
                                                    chrom, snp_coord))
                     plt.xlim(left=-1, right=25)
                 pdf.savefig(fig)
+
+    # Create an empty file to signal the end of script execution for snakemake
     Path(outpath + '/methylator.txt').touch()
 
 def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
@@ -150,7 +162,6 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
     # Combine them in one df. If file does not exist, create empty DF
     cpg_OB_file = list(in_path.glob("CpG_OB*" + sample_id + "_bismark_*"))
     cpg_OT_file = list(in_path.glob("CpG_OT*" + sample_id + "_bismark_*"))
-    print(sample_id)
     # List should contain one file exactly
     if len(cpg_OB_file) == 1:
         cpg_string = str(cpg_OB_file[0])
@@ -165,10 +176,11 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
         methylation = pd.concat([methylationOB, methylationOT])
     else:
         methylation = methylationOB
+
     # Read alignment file, create a dict of allele to records list
     samFile = pysam.AlignmentFile(samfile, 'rb')
-
     ampl_list = read_amplicon(ampltable)
+
     methyl_data_list = []
     plot_data_list = []
     # Loop over the list of amplicons
@@ -180,6 +192,7 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
         chrom = amplicon.chrom
         upper_mCG_thr = amplicon.upper_mCG_thr
         snp_coords = amplicon.snps_coord.split(";")
+
         # Extract the methylation table that concerns this amplicon region
         amplicon_meth = methylation.loc[(methylation["Chr"] == chrom) & (
                 methylation["Pos"] >= start) & (methylation["Pos"] <= end)]
@@ -191,7 +204,8 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
             # Each amplicon region might have more than one SNPs
             for snp_coord in snp_coords:
                 snp_coord = int(snp_coord)-1  # pysam uses zero-based indexing
-                # Create a dict of allele to records list from the alignment file
+                # Create a dict of allele (base) to a list of records from
+                # the alignment file
                 allele_to_read_record = base_to_reads(samFile, chrom, snp_coord)
                 # returns a flattened list
                 all_records = [record for list_records in
@@ -212,7 +226,7 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                 # Loop over alleles
                 allele_to_counts = {}
                 data_frames_plots = []
-                ## Loop over alleles, phase reads
+                # Loop over alleles, phase reads
                 for allele, records in records_to_keep.items():
                     methylation_phased = methylation[methylation["Read"].isin(records)]
                     methyl_DFs = methyl_patterns(methylation_phased, outpath,
@@ -221,8 +235,8 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                                                  snp_coord)
                     allele_to_counts[allele] = methyl_DFs.count_meth_class
                     data_frames_plots.append(methyl_DFs.count_methyl_CpGs)
-                count_methyl_CpGs = pd.concat(data_frames_plots, axis=1, join="outer",
-                              keys="methStatesCount")
+                count_methyl_CpGs = pd.concat(data_frames_plots, axis=1,
+                                              join="outer", keys="methStatesCount")
                 count_methyl_CpGs.columns = count_methyl_CpGs.columns.droplevel()
                 count_methyl_CpGs.reset_index(inplace=True)
                 count_methyl_CpGs.fillna(value=0, inplace=True)
@@ -279,19 +293,6 @@ def base_to_reads(sam_file, chr, pos):
                 else:
                     allele_to_read_record[base].append(aln.query_name)
     return(allele_to_read_record)
-
-
-# A class to hold info about an amplicon
-@dataclass
-class Amplicon:
-    name: str
-    chrom: str
-    start: int
-    end: int
-    strand: str
-    upper_mCG_thr: int
-    low_mCG_thr: int
-    snps_coord: str
 
 
 def read_amplicon(ampltable) -> List[Amplicon]:
