@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use('PDF') 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from .methylationPattern import methyl_patterns
+from methylationPattern import methyl_patterns
 
 
 @dataclass
@@ -100,43 +100,56 @@ def main(inpath, thr, outpath, ampltable):
                             header=True)
         pd.concat(d).to_excel("{0}/{1}.xls".format(outpath, ampl))
 
-    # All plots per amplicon and snp and save in one PDF
+    #
+    plot_rows_per_page = 3
+    plot_columns_per_page = 2
+    plots_per_page = plot_rows_per_page*plot_columns_per_page
+
+    # Make all plots per amplicon and snp and save in one PDF
     for ampl_snp, plot_data_list in ampl_snp_to_plot_data.items():
-        print(ampl_snp)
         # Make plots
-        with PdfPages("{}/plots/{}.pdf".format(outpath, ampl_snp)) as pdf:
-            for plot_data in plot_data_list:
-                count_methyl_CpcGs =  plot_data.count_methyl_CpGs
-                low_mCG_thr = plot_data.low_mCG_thr
-                upper_mCG_thr = plot_data.upper_mCG_thr
-                amplicon = plot_data.amplicon
-                chrom = plot_data.chrom
-                snp_coord = plot_data.snp_coord
-                sample_id = plot_data.sample_id
-                fig = plt.figure()
-                if len(count_methyl_CpcGs.index) > 0:
-                    ax = fig.add_subplot()
-                    ax.plot("methStatesCount", "Total", data=count_methyl_CpcGs,
-                            label="Total",
-                            color="black", linestyle=":")
-                    alleles = count_methyl_CpcGs.drop(
-                        labels=["methStatesCount", "Total"], axis=1)
+        matplotlib.rcParams.update({'font.size': 5})
+        pdf =  PdfPages("{}/plots/{}.pdf".format(outpath, ampl_snp))
+        fig = plt.figure()
+        plot_count = 1
+        for plot_data in plot_data_list:
+            count_methyl_CpcGs =  plot_data.count_methyl_CpGs
+            low_mCG_thr = plot_data.low_mCG_thr
+            upper_mCG_thr = plot_data.upper_mCG_thr
+            amplicon = plot_data.amplicon
+            chrom = plot_data.chrom
+            snp_coord = plot_data.snp_coord
+            sample_id = plot_data.sample_id
+            if len(count_methyl_CpcGs.index) > 0:
+                ax = fig.add_subplot(plot_rows_per_page,
+                                     plot_columns_per_page, plot_count)
+                ax.plot("methStatesCount", "Total", data=count_methyl_CpcGs,
+                        label="Total", color="black", linestyle=":")
+                alleles = count_methyl_CpcGs.drop(
+                    labels=["methStatesCount", "Total"], axis=1)
 
-                    # Each allele has a fixed color
-                    colors = {"C": "blue", "T": "red", "G": "yellow", "A": "green"}
-                    for allele in list(alleles.columns):
-                        ax.scatter(x=count_methyl_CpcGs["methStatesCount"],
-                                   y=count_methyl_CpcGs[allele], label=allele,
-                                   color=colors[allele])
-                    ax.legend()
-                    ax.grid(True)
-                    ax.axvline(low_mCG_thr, color="black", linestyle="--")
-                    ax.axvline(upper_mCG_thr, color="black", linestyle="--")
-                    plt.title("{}_{}_{}:{}".format(amplicon, sample_id,
-                                                   chrom, snp_coord))
-                    plt.xlim(left=-1, right=25)
+                # Each allele has a fixed color
+                colors = {"C": "blue", "T": "red", "G": "yellow", "A": "green"}
+                for allele in list(alleles.columns):
+                    ax.scatter(x=count_methyl_CpcGs["methStatesCount"],
+                                y=count_methyl_CpcGs[allele], label=allele,
+                                color=colors[allele])
+                ax.legend()
+                ax.grid(True)
+                ax.axvline(low_mCG_thr, color="black", linestyle="--")
+                ax.axvline(upper_mCG_thr, color="black", linestyle="--")
+                plt.title("{}_{}_{}:{}".format(amplicon, sample_id, chrom,
+                                               snp_coord))
+                plt.xlim(left=-1, right=25)
+                # If max number of plot per page reached, save figure and
+                # create new figure object
+            if plot_count%plots_per_page == 0:
                 pdf.savefig(fig)
-
+                fig = plt.figure()
+                plot_count = 0
+            plot_count += 1
+        pdf.savefig(fig)
+        pdf.close()
     # Create an empty file to signal the end of script execution for snakemake
     Path(outpath + '/methylator.txt').touch()
 
@@ -331,7 +344,6 @@ def sample_name(file):
     Get sample name out of the bismark file name.
     Expects full path of a CpG file created by bismark
     """
-    # str_search = re.search('.+/CpG_OB_(.+)_bismark.+', file)
     str_search = re.search('.+/(.+)_bismark_(bt2|hisat2)\.sorted\.bam', file)
     sample_name = str_search.group(1)
     return sample_name
