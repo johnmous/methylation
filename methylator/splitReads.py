@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use('PDF') 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from methylationPattern import methyl_patterns
+from .methylationPattern import methyl_patterns
 
 
 @dataclass
