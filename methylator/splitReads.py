@@ -62,7 +62,9 @@ class Amplicon:
               help='Path to place the output')
 @click.option('--ampltable', type=click.Path(exists=True, readable=True),
               required=True, help="Tab separated file with amplicon locations")
-def main(inpath, thr, outpath, ampltable):
+@click.option('--plotgrid', type = str, default="3;2", help = 'Number of '
+              'plots to draw per row and column, separated with ";"')
+def main(inpath, thr, outpath, ampltable, plotgrid):
     in_path = Path(inpath)
     alignment_files = list(in_path.glob("*bam"))
 
@@ -101,8 +103,8 @@ def main(inpath, thr, outpath, ampltable):
         pd.concat(d).to_excel("{0}/{1}.xls".format(outpath, ampl))
 
     #
-    plot_rows_per_page = 3
-    plot_columns_per_page = 2
+    plot_rows_per_page = int(plotgrid.split(";")[0])
+    plot_columns_per_page = int(plotgrid.split(";")[1])
     plots_per_page = plot_rows_per_page*plot_columns_per_page
 
     # Make all plots per amplicon and snp and save in one PDF
@@ -111,7 +113,7 @@ def main(inpath, thr, outpath, ampltable):
         matplotlib.rcParams.update({'font.size': 5})
         pdf =  PdfPages("{}/plots/{}.pdf".format(outpath, ampl_snp))
         fig = plt.figure()
-        plot_count = 1
+        plot_count = 0
         for plot_data in plot_data_list:
             count_methyl_CpcGs =  plot_data.count_methyl_CpGs
             low_mCG_thr = plot_data.low_mCG_thr
@@ -121,6 +123,7 @@ def main(inpath, thr, outpath, ampltable):
             snp_coord = plot_data.snp_coord
             sample_id = plot_data.sample_id
             if len(count_methyl_CpcGs.index) > 0:
+                plot_count += 1
                 ax = fig.add_subplot(plot_rows_per_page,
                                      plot_columns_per_page, plot_count)
                 ax.plot("methStatesCount", "Total", data=count_methyl_CpcGs,
@@ -129,11 +132,14 @@ def main(inpath, thr, outpath, ampltable):
                     labels=["methStatesCount", "Total"], axis=1)
 
                 # Each allele has a fixed color
-                colors = {"C": "blue", "T": "red", "G": "yellow", "A": "green"}
+                colors = {"C": "blue",
+                          "T": "red",
+                          "G": "yellow",
+                          "A": "green"}
                 for allele in list(alleles.columns):
                     ax.scatter(x=count_methyl_CpcGs["methStatesCount"],
                                 y=count_methyl_CpcGs[allele], label=allele,
-                                color=colors[allele])
+                                color=colors[allele], s = 10)
                 ax.legend()
                 ax.grid(True)
                 ax.axvline(low_mCG_thr, color="black", linestyle="--")
@@ -141,13 +147,17 @@ def main(inpath, thr, outpath, ampltable):
                 plt.title("{}_{}_{}:{}".format(amplicon, sample_id, chrom,
                                                snp_coord))
                 plt.xlim(left=-1, right=25)
-                # If max number of plot per page reached, save figure and
-                # create new figure object
-            if plot_count%plots_per_page == 0:
+                plt.xlabel("Number of methylated CpG sites")
+                plt.ylabel("Number of reads")
+
+            # If max number of plots per page reached, save figure (page)
+            # and create new figure object
+            if plot_count == plots_per_page:
+                fig.tight_layout()
                 pdf.savefig(fig)
                 fig = plt.figure()
                 plot_count = 0
-            plot_count += 1
+        fig.tight_layout()
         pdf.savefig(fig)
         pdf.close()
     # Create an empty file to signal the end of script execution for snakemake
