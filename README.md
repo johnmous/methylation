@@ -19,10 +19,8 @@ Options:
 | --inpath | PATH | Directory with CpG and alignment files files  [required] |
 | --thr | FLOAT | Threshold for allele frequency bellow which an allele is ignored [required]|
 | --outpath | PATH | Path to place the output  [required] |
-| --ampltable | PATH | Tab separated file with amplicon attributes  
-[required] |
-| --plotgrid | string | Number of plots to draw per row and column, 
-separated with ";" | 
+| --ampltable | PATH | Tab separated file with amplicon attributes  [required] |
+| --plotgrid | string | Number of plots to draw per row and column, separated with ";" | 
 
 * **--inpath** a directory is provided where the output the alignment files 
 and the methylation calls is placed. Script will first try to match files with glob
