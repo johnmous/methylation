@@ -61,7 +61,8 @@ class Amplicon:
 @click.option('--outpath', type=click.Path(writable=True), required=True,
               help='Path to place the output')
 @click.option('--ampltable', type=click.Path(exists=True, readable=True),
-              required=True, help="Tab separated file with amplicon locations")
+              required=True, help="Tab separated file with amplicon "
+                                  "locations on genome")
 @click.option('--plotgrid', type = str, default="3;2", help = 'Number of '
               'plots to draw per row and column, separated with ";"')
 def main(inpath, thr, outpath, ampltable, plotgrid):
@@ -109,7 +110,6 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
 
     # Make all plots per amplicon and snp and save in one PDF
     for ampl_snp, plot_data_list in ampl_snp_to_plot_data.items():
-        # Make plots
         matplotlib.rcParams.update({'font.size': 5})
         pdf =  PdfPages("{}/plots/{}.pdf".format(outpath, ampl_snp))
         fig = plt.figure()
@@ -228,10 +228,12 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
         if '-' not in amplicon.snps_coord:
             # Each amplicon region might have more than one SNPs
             for snp_coord in snp_coords:
-                snp_coord = int(snp_coord)-1  # pysam uses zero-based indexing
+                snp_coord = int(snp_coord)
                 # Create a dict of allele (base) to a list of records from
                 # the alignment file
-                allele_to_read_record = base_to_reads(samFile, chrom, snp_coord)
+                allele_to_read_record = base_to_reads(samFile, chrom,
+                                                      snp_coord-1) # pysam
+                # uses zero-based indexing
                 # returns a flattened list
                 all_records = [record for list_records in
                                allele_to_read_record.values() for record in list_records]
@@ -248,7 +250,6 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                 # Add all alleles with all_records_to_keep to dict
                 records_to_keep["Total"] = all_records_to_keep
 
-                # Loop over alleles
                 allele_to_counts = {}
                 data_frames_plots = []
                 # Loop over alleles, phase reads
@@ -271,7 +272,7 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                 plot_data_list.append(plot_data)
 
                 for allele, series in allele_to_counts.items():
-                    index.append((sample_id, amplicon_name, "{0}:{1}".format(chrom, snp_coord + 1), allele))
+                    index.append((sample_id, amplicon_name, "{0}:{1}".format(chrom, snp_coord ), allele))
                     list_series.append(series)
             index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
             df = pd.DataFrame(list_series, index = index)

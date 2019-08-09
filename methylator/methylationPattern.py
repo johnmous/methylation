@@ -9,6 +9,7 @@ class MethylationDFs:
     count_meth_class: pd.Series
     count_methyl_CpGs: pd.DataFrame
 
+
 def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, allele, chrom, snp_coord):
     """
     Separate reads in three categories: Methylated , unmethylated, partially methylated according to the number
