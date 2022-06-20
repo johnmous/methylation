@@ -31,10 +31,9 @@ and the methylation calls is placed. Script will first try to match files with g
 * **--ampltable** a tab separated file is provided, with the fields as shown
 in the following example: 
 
-| Name | Chr | start | end	| strand | size_bp | upper_mCG_thr | low_mCG_thr | 
-snps_coord |
+| Name | Chr | start | end	| strand | size_bp | upper_mCG_thr | low_mCG_thr | snps_coord |
 |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| H19 | chr11 |	1999754| 2000063 | neg | 310| 20 | 3 | 1999845;1999934 |
+| H19 | chr11 |	1999754 | 2000063 | neg | 310 | 20 | 3 | 1999845;1999934 |
 
 Most of the fields are self explanatory. The rest are as:
 * **upper_mCG_CG** is an integer. If a read has this number, or more, CpGs 
