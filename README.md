@@ -1,14 +1,13 @@
 ## Differential methylation analysis tool
 
 A tool for the analysis of amplicon methylation data. Works with the output 
-from [Bismark](https://www.bioinformatics.babraham.ac.uk/projects/bismark/), a program to map bisulfite treated sequencing reads to a genome of interest and perform methylation calls.
+from [Bismark](https://www.bioinformatics.babraham.ac.uk/projects/bismark/), a program used to map bisulfite treated sequencing reads to the genome of interest and perform methylation calls.
 
-Aims to:
-  * Classify the reads accodring to their methylation status (number of CpGs that 
-  are methylated) into: mostly methylated, mostly unmethylated and partially 
-  methylated
-  * Phase the reads according to a heterozygous SNP in the amplicon region
-  * Count the number of reads in each methylation status class and report it per 
+The tool delivers the following:
+  * Classify the genomic sequences by their methylation status into: mostly methylated, mostly unmethylated and partially 
+  methylated. Methylation status refers to the number of CpGs in a genomic sequence that are methylated
+  * Phase the genomic sequences according to a heterozygous SNP in the amplicon region
+  * Count the number of genomic sequences in each methylation status class and report it per 
   group of phased reads
   
 ### Usage
