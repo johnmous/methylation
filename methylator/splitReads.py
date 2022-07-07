@@ -254,7 +254,7 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                 data_frames_plots = []
                 # Loop over alleles, phase reads
                 for allele, records in records_to_keep.items():
-                    methylation_phased = methylation[methylation["Read"].isin(records)]
+                    methylation_phased = amplicon_meth[amplicon_meth["Read"].isin(records)]
                     methyl_DFs = methyl_patterns(methylation_phased, outpath,
                                                  low_mCG_thr, upper_mCG_thr,
                                                  sample_id, allele, chrom,
@@ -278,12 +278,25 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
             df = pd.DataFrame(list_series, index = index)
 
         else:
+            # Randomly select a number of records (reads) to keep with the help of pysam
+            # If all reads in a large alignment file are used, it results in performance issues
+            position = int(abs((end-start)/2))  # Middle of the amplicon
+            pileups = samFile.pileup(chrom, position, max_depth=30000)
+            read_ids = []
+            for pileup_col in pileups:
+                for pileup_read in pileup_col.pileups:
+                    if not pileup_read.is_del and not pileup_read.is_refskip and pileup_col.pos == pos:
+                        name = pileup_read.alignment.query_name
+                        if name not in read_ids:
+                            read_ids.append(name)
+
+            amplicon_meth = amplicon_meth[amplicon_meth["Read"].isin(read_ids)]
             series = methyl_patterns(amplicon_meth, outpath,
                                      low_mCG_thr, upper_mCG_thr, sample_id, "-", chrom, "-")
             index.append((sample_id, amplicon_name, "-", "-"))
             list_series.append(series)
             index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
-            df = pd.DataFrame(list_series, index = index)
+            df = pd.DataFrame(list_series, index=index)
             # TODO: plot_data
 
         # if amplicon_name in amplicon_to_df:
@@ -320,6 +333,28 @@ def base_to_reads(sam_file, chr, pos):
                     allele_to_read_record[base].append(aln.query_name)
     return(allele_to_read_record)
 
+pileups = samFile.pileup("NC_000011.10", 2700000, max_depth=30000)
+allele_to_read_record = {}
+for pileup_col in pileups:
+    print("new pileup")
+    for pileup_read in pileup_col.pileups:
+        if not pileup_read.is_del and not pileup_read.is_refskip and pileup_col.pos == pos:
+           aln = pileup_read.alignment
+           base = aln.query_sequence[pileup_read.query_position]
+           if base not in allele_to_read_record:
+               allele_to_read_record[base] = [aln.query_name]
+           else:
+               allele_to_read_record[base].append(aln.query_name)
+
+###
+pileups = samFile.pileup("NC_000011.10", 2700000, max_depth=30000)
+read_ids = []
+for pileup_col in pileups:
+    for pileup_read in pileup_col.pileups:
+        if not pileup_read.is_del and not pileup_read.is_refskip and pileup_col.pos == pos:
+            name = pileup_read.alignment.query_name
+            if name not in read_ids:
+                read_ids.append(name)
 
 def read_amplicon(ampltable) -> List[Amplicon]:
     """
