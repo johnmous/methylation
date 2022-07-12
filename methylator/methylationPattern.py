@@ -1,3 +1,23 @@
+# Copyright (c) 2022 Leiden University Medical Center
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import pandas as pd
 from pathlib import Path
 from dataclasses import dataclass
@@ -10,7 +30,7 @@ class MethylationDFs:
     count_methyl_CpGs: pd.DataFrame
 
 
-def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, allele, chrom, snp_coord):
+def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, allele, chrom, snp_coord, ampl_prev_thr):
     """
     Separate reads in three categories: Methylated , unmethylated, partially methylated according to the number
     of CpGs that are methyalted
@@ -18,6 +38,7 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
     :param outpath: path to save the table with the methylation patterns
     :param: number_CGs: Number of CGs in the amplicon
     :param methyl_thr: Integer to subtract from number_CGs to set threshold from mostly methylated
+    :param: ampl_prev_thr: amplicon prevalence threshold, a float to remove CpG sites less than this fraction of total reads
     :return: A pandas.Series with read counts and percentages for the three methylation categories
     """
 
@@ -29,8 +50,8 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
         read_pos_methyl = methyl_extr[["Read", "Pos", "MethylStatus"]]
         read_count = len(read_pos_methyl["Read"].unique())
 
-        # Keep only meth posistions with counts in at least 1% of all reads in amplicon
-        pos_to_keep = meth_pos_counts[meth_pos_counts > read_count*0.01].index
+        # Keep only meth positions with counts in at least 15% of all reads in amplicon
+        pos_to_keep = meth_pos_counts[meth_pos_counts > read_count*ampl_prev_thr].index
         # posToKeepCount = len(pos_to_keep)
         read_pos_methyl = read_pos_methyl[read_pos_methyl["Pos"].isin(pos_to_keep)]
 
@@ -48,7 +69,6 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
         collapsed_counted_patterns = methyl_pattern.groupby(
             methyl_pattern.columns.tolist()).size().reset_index().rename(columns={0:'counts'})
         # totalMethPos = methyl_pattern.shape[1]
-
         # Count the per read methylation states and save in a separate column
         collapsed_counted_patterns["methStatesCount"] = count_states(collapsed_counted_patterns, "+")
         collapsed_counted_patterns["unmethStatesCount"] = count_states(collapsed_counted_patterns, "-")
@@ -105,7 +125,7 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
 
 def count_states(meth_matrix, meth_state):
     """
-    Count the occurence of strings (denoting methylations states) in the table per pattern (row):
+    Count the occurrence of strings (denoting methylations states) in the table per pattern (row):
     Returns a Series with length equal to matrix rows
     """
     patterns = meth_matrix.drop(labels="counts", axis=1)

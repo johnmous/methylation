@@ -1,3 +1,23 @@
+# Copyright (c) 2022 Leiden University Medical Center
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import click
 import pysam
 import re
@@ -52,6 +72,7 @@ class Amplicon:
     upper_mCG_thr: int
     low_mCG_thr: int
     snps_coord: str
+    ampl_prev_thr: float
 
 @click.command()
 @click.option('--inpath', type=click.Path(exists=True, readable=True),
@@ -74,6 +95,7 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
     ampl_snp_to_plot_data = {}
     for file in alignment_files:
         sample_id = sample_name(str(file))
+        print(f"Working with sample: {sample_id}")
         per_sample_data = per_sample(file, thr, in_path, outpath, ampltable,
                               sample_id)
 
@@ -111,7 +133,7 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
     # Make all plots per amplicon and snp and save in one PDF
     for ampl_snp, plot_data_list in ampl_snp_to_plot_data.items():
         matplotlib.rcParams.update({'font.size': 5})
-        pdf =  PdfPages("{}/plots/{}.pdf".format(outpath, ampl_snp))
+        pdf = PdfPages(f"{outpath}/plots/{ampl_snp}.pdf")
         fig = plt.figure()
         plot_count = 0
         for plot_data in plot_data_list:
@@ -135,7 +157,8 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
                 colors = {"C": "blue",
                           "T": "red",
                           "G": "yellow",
-                          "A": "green"}
+                          "A": "green",
+                          "-": "black"}
                 for allele in list(alleles.columns):
                     ax.scatter(x=count_methyl_CpcGs["methStatesCount"],
                                 y=count_methyl_CpcGs[allele], label=allele,
@@ -217,6 +240,8 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
         chrom = amplicon.chrom
         upper_mCG_thr = amplicon.upper_mCG_thr
         snp_coords = amplicon.snps_coord.split(";")
+        ampl_prev_thr = amplicon.ampl_prev_thr
+        print(f"Starting with amplicon: {amplicon_name}")
 
         # Extract the methylation table that concerns this amplicon region
         amplicon_meth = methylation.loc[(methylation["Chr"] == chrom) & (
@@ -254,11 +279,11 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                 data_frames_plots = []
                 # Loop over alleles, phase reads
                 for allele, records in records_to_keep.items():
-                    methylation_phased = methylation[methylation["Read"].isin(records)]
+                    methylation_phased = amplicon_meth[amplicon_meth["Read"].isin(records)]
                     methyl_DFs = methyl_patterns(methylation_phased, outpath,
                                                  low_mCG_thr, upper_mCG_thr,
                                                  sample_id, allele, chrom,
-                                                 snp_coord)
+                                                 snp_coord, ampl_prev_thr)
                     allele_to_counts[allele] = methyl_DFs.count_meth_class
                     data_frames_plots.append(methyl_DFs.count_methyl_CpGs)
                 count_methyl_CpGs = pd.concat(data_frames_plots, axis=1,
@@ -272,19 +297,53 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                 plot_data_list.append(plot_data)
 
                 for allele, series in allele_to_counts.items():
-                    index.append((sample_id, amplicon_name, "{0}:{1}".format(chrom, snp_coord ), allele))
+                    index.append((sample_id, amplicon_name, "f{chrom}:{snp_coord}", allele))
                     list_series.append(series)
             index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
-            df = pd.DataFrame(list_series, index = index)
+            df = pd.DataFrame(list_series, index=index)
 
         else:
+            # To improve performance, randomly select a number of records (reads) to keep with the help of pysam
+            position = int(abs((end-start)/2))  # Middle of the amplicon
+            pileups = samFile.pileup(chrom, position, max_depth=30000)
+            read_ids = []
+            for pileup_col in pileups:
+                for pileup_read in pileup_col.pileups:
+                    if not pileup_read.is_del and not pileup_read.is_refskip:
+                        name = pileup_read.alignment.query_name
+                        if name not in read_ids:
+                            read_ids.append(name)
+
+            amplicon_meth = amplicon_meth[amplicon_meth["Read"].isin(read_ids)]
             series = methyl_patterns(amplicon_meth, outpath,
-                                     low_mCG_thr, upper_mCG_thr, sample_id, "-", chrom, "-")
+                                     low_mCG_thr, upper_mCG_thr, sample_id,
+                                     "-", chrom, "-", ampl_prev_thr)
             index.append((sample_id, amplicon_name, "-", "-"))
             list_series.append(series)
+            # index.append((sample_id, amplicon_name, "-:-", "Total"))
+            # list_series.append(series)
             index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
-            df = pd.DataFrame(list_series, index = index)
-            # TODO: plot_data
+            df = pd.DataFrame(list_series, index=index)
+
+            # Plot data
+            data_frames_plots = []
+            snp_coord = "-"
+            for allele in ["-", "Total"]:
+                methyl_DFs = methyl_patterns(amplicon_meth, outpath,
+                                             low_mCG_thr, upper_mCG_thr,
+                                             sample_id, allele, chrom,
+                                             snp_coord, ampl_prev_thr)
+                data_frames_plots.append(methyl_DFs.count_methyl_CpGs)
+
+            count_methyl_CpGs = pd.concat(data_frames_plots, axis=1,
+                                          join="outer", keys="methStatesCount")
+            count_methyl_CpGs.columns = count_methyl_CpGs.columns.droplevel()
+            count_methyl_CpGs.reset_index(inplace=True)
+            count_methyl_CpGs.fillna(value=0, inplace=True)
+            plot_data = Plot_data(count_methyl_CpGs, sample_id, amplicon_name,
+                                  chrom, snp_coord, low_mCG_thr,
+                                  upper_mCG_thr)
+            plot_data_list = [plot_data]
 
         # if amplicon_name in amplicon_to_df:
         #    raise Exception("Amplicon name: {} is present twice. Check your ampltable and make "
@@ -320,7 +379,6 @@ def base_to_reads(sam_file, chr, pos):
                     allele_to_read_record[base].append(aln.query_name)
     return(allele_to_read_record)
 
-
 def read_amplicon(ampltable) -> List[Amplicon]:
     """
     Read amplicon table and get list of amplicon objects
@@ -341,11 +399,12 @@ def read_amplicon(ampltable) -> List[Amplicon]:
         upper_mCG_thr = row["upper_mCG_thr"]
         low_mCG_thr = row["low_mCG_thr"]
         snp_coord = str(row["snps_coord"])
+        ampl_prev_thr = row["ampl_prev_thr"]
         # row: List[things]
         # amplication = Amplicon(*row)  <- Amplicon(row[0], row[1] .... )
         # row: Dict[str, things]
         # amplicon = Amplicon(**row) <- Amplicon(key=row[key], key2=row[key2]...)
-        amplicon = Amplicon(name, chrom, start, end, strand, upper_mCG_thr, low_mCG_thr, snp_coord)
+        amplicon = Amplicon(name, chrom, start, end, strand, upper_mCG_thr, low_mCG_thr, snp_coord, ampl_prev_thr)
         amplList.append(amplicon)
     return amplList
 
