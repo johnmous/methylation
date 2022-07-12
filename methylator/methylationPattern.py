@@ -77,8 +77,7 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
         # Save in table
         p = Path(outpath + "/perSample/")
         p.mkdir( exist_ok=True)
-        collapsed_counted_patterns.to_csv("{0}/perSample/{1}_{2}_{3}.{4}.tsv".
-                                          format(outpath, sample_id, chrom, snp_coord, allele), sep ="\t", header=True)
+        collapsed_counted_patterns.to_csv(f"{outpath}/perSample/{sample_id}_{chrom}_{snp_coord}.{allele}.tsv", sep ="\t", header=True)
         count_methyl_CpGs = pd.pivot_table(collapsed_counted_patterns,
                                     values="counts",
                             index="methStatesCount", aggfunc=np.sum)
@@ -100,9 +99,9 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
         count_meth_class = pd.Series(
             [read_count, methylated, methyl_pcnt, unmethylated, unmethyl_pcnt, patrially_meth, partial_pcnt],
             index=["totalReads",
-                   "methylated_reads(mCpGs>={})".format(upper_mCG_thr),
+                   f"methylated_reads(mCpGs>={upper_mCG_thr})",
                    "methylPcnt",
-                   "unmethylated_reads(mCpGs<={})".format(methyl_thr),
+                   f"unmethylated_reads(mCpGs<={methyl_thr})",
                    "unmethylPcnt",
                    "patriallyMeth_reads",
                    "partialPcnt"])
@@ -110,9 +109,9 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
         count_meth_class = pd.Series(
             [0, 0, 0, 0, 0, 0, 0],
             index=["totalReads",
-                   "methylated_reads(mCpGs>={})".format(upper_mCG_thr),
+                   f"methylated_reads(mCpGs>={upper_mCG_thr})",
                    "methylPcnt",
-                   "unmethylated_reads(mCpGs<={})".format(methyl_thr),
+                   f"unmethylated_reads(mCpGs<={methyl_thr})",
                    "unmethylPcnt",
                    "patriallyMeth_reads",
                    "partialPcnt"])

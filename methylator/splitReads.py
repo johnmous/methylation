@@ -112,8 +112,7 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
         plot_data_list = per_sample_data.plot_list
         for plot_data in plot_data_list:
             snp_to_plot_data = {}
-            ampl_snp = "{}.{}:{}".format(plot_data.amplicon, plot_data.chrom, \
-                                                     str(plot_data.snp_coord))
+            ampl_snp = f"{plot_data.amplicon}.{plot_data.chrom}:{str(plot_data.snp_coord)}"
             if ampl_snp not in ampl_snp_to_plot_data:
                 ampl_snp_to_plot_data[ampl_snp] = [plot_data]
             else:
@@ -121,9 +120,9 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
 
     # Write tables, per amplicon
     for ampl, d in ampl_to_df.items():
-        pd.concat(d).to_csv("{0}/{1}.tsv".format(outpath, ampl), sep ="\t",
+        pd.concat(d).to_csv(f"{outpath}/{ampl}.tsv", sep ="\t",
                             header=True)
-        pd.concat(d).to_excel("{0}/{1}.xls".format(outpath, ampl))
+        pd.concat(d).to_excel(f"{outpath}/{ampl}.xls")
 
     #
     plot_rows_per_page = int(plotgrid.split(";")[0])
@@ -167,11 +166,10 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
                 ax.grid(True)
                 ax.axvline(low_mCG_thr, color="black", linestyle="--")
                 ax.axvline(upper_mCG_thr, color="black", linestyle="--")
-                plt.title("{}_{}_{}:{}".format(amplicon, sample_id, chrom,
-                                               snp_coord))
+                plt.title(f"{amplicon}_{sample_id}_{chrom}:{snp_coord}")
                 plt.xlim(left=-1, right=25)
-                plt.xlabel("Number of methylated CpG sites")
-                plt.ylabel("Number of reads")
+                plt.xlabel("Number of per molecule methylated CpG sites")
+                plt.ylabel("Number of molecules")
 
             # If max number of plots per page reached, save figure (page)
             # and create new figure object
@@ -303,22 +301,13 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
             df = pd.DataFrame(list_series, index=index)
 
         else:
-<<<<<<< HEAD
             # To improve performance, randomly select a number of records (reads) to keep with the help of pysam
-=======
-            # Randomly select a number of records (reads) to keep with the help of pysam
-            # If all reads in a large alignment file are used, it results in performance issues
->>>>>>> 1ca2c9156e38dd47fb6cb6e12e0ca1c4b54651d4
             position = int(abs((end-start)/2))  # Middle of the amplicon
             pileups = samFile.pileup(chrom, position, max_depth=30000)
             read_ids = []
             for pileup_col in pileups:
                 for pileup_read in pileup_col.pileups:
-<<<<<<< HEAD
                     if not pileup_read.is_del and not pileup_read.is_refskip:
-=======
-                    if not pileup_read.is_del and not pileup_read.is_refskip and pileup_col.pos == pos:
->>>>>>> 1ca2c9156e38dd47fb6cb6e12e0ca1c4b54651d4
                         name = pileup_read.alignment.query_name
                         if name not in read_ids:
                             read_ids.append(name)
@@ -333,7 +322,6 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
             # list_series.append(series)
             index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
             df = pd.DataFrame(list_series, index=index)
-<<<<<<< HEAD
 
             # Plot data
             data_frames_plots = []
@@ -354,9 +342,6 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                                   chrom, snp_coord, low_mCG_thr,
                                   upper_mCG_thr)
             plot_data_list = [plot_data]
-=======
-            # TODO: plot_data
->>>>>>> 1ca2c9156e38dd47fb6cb6e12e0ca1c4b54651d4
 
         # if amplicon_name in amplicon_to_df:
         #    raise Exception("Amplicon name: {} is present twice. Check your ampltable and make "
@@ -392,32 +377,6 @@ def base_to_reads(sam_file, chr, pos):
                     allele_to_read_record[base].append(aln.query_name)
     return(allele_to_read_record)
 
-<<<<<<< HEAD
-=======
-pileups = samFile.pileup("NC_000011.10", 2700000, max_depth=30000)
-allele_to_read_record = {}
-for pileup_col in pileups:
-    print("new pileup")
-    for pileup_read in pileup_col.pileups:
-        if not pileup_read.is_del and not pileup_read.is_refskip and pileup_col.pos == pos:
-           aln = pileup_read.alignment
-           base = aln.query_sequence[pileup_read.query_position]
-           if base not in allele_to_read_record:
-               allele_to_read_record[base] = [aln.query_name]
-           else:
-               allele_to_read_record[base].append(aln.query_name)
-
-###
-pileups = samFile.pileup("NC_000011.10", 2700000, max_depth=30000)
-read_ids = []
-for pileup_col in pileups:
-    for pileup_read in pileup_col.pileups:
-        if not pileup_read.is_del and not pileup_read.is_refskip and pileup_col.pos == pos:
-            name = pileup_read.alignment.query_name
-            if name not in read_ids:
-                read_ids.append(name)
-
->>>>>>> 1ca2c9156e38dd47fb6cb6e12e0ca1c4b54651d4
 def read_amplicon(ampltable) -> List[Amplicon]:
     """
     Read amplicon table and get list of amplicon objects
