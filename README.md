@@ -41,4 +41,4 @@ methylated, it is classified as methylated.
 methylated, it is classified as unmethylated.
 * **snps_coord** is an integer used to provide the location(s) of the 
 heterozygous SNP(s) on which the reads are phased. If more than one, they 
-should be separated with **;** 
+should be separated with **;**. If no SNPs are present, a **-** must be placed in that field. 

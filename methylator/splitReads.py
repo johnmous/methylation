@@ -303,13 +303,22 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
             df = pd.DataFrame(list_series, index=index)
 
         else:
+<<<<<<< HEAD
             # To improve performance, randomly select a number of records (reads) to keep with the help of pysam
+=======
+            # Randomly select a number of records (reads) to keep with the help of pysam
+            # If all reads in a large alignment file are used, it results in performance issues
+>>>>>>> 1ca2c9156e38dd47fb6cb6e12e0ca1c4b54651d4
             position = int(abs((end-start)/2))  # Middle of the amplicon
             pileups = samFile.pileup(chrom, position, max_depth=30000)
             read_ids = []
             for pileup_col in pileups:
                 for pileup_read in pileup_col.pileups:
+<<<<<<< HEAD
                     if not pileup_read.is_del and not pileup_read.is_refskip:
+=======
+                    if not pileup_read.is_del and not pileup_read.is_refskip and pileup_col.pos == pos:
+>>>>>>> 1ca2c9156e38dd47fb6cb6e12e0ca1c4b54651d4
                         name = pileup_read.alignment.query_name
                         if name not in read_ids:
                             read_ids.append(name)
@@ -324,6 +333,7 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
             # list_series.append(series)
             index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
             df = pd.DataFrame(list_series, index=index)
+<<<<<<< HEAD
 
             # Plot data
             data_frames_plots = []
@@ -344,6 +354,9 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                                   chrom, snp_coord, low_mCG_thr,
                                   upper_mCG_thr)
             plot_data_list = [plot_data]
+=======
+            # TODO: plot_data
+>>>>>>> 1ca2c9156e38dd47fb6cb6e12e0ca1c4b54651d4
 
         # if amplicon_name in amplicon_to_df:
         #    raise Exception("Amplicon name: {} is present twice. Check your ampltable and make "
@@ -379,6 +392,32 @@ def base_to_reads(sam_file, chr, pos):
                     allele_to_read_record[base].append(aln.query_name)
     return(allele_to_read_record)
 
+<<<<<<< HEAD
+=======
+pileups = samFile.pileup("NC_000011.10", 2700000, max_depth=30000)
+allele_to_read_record = {}
+for pileup_col in pileups:
+    print("new pileup")
+    for pileup_read in pileup_col.pileups:
+        if not pileup_read.is_del and not pileup_read.is_refskip and pileup_col.pos == pos:
+           aln = pileup_read.alignment
+           base = aln.query_sequence[pileup_read.query_position]
+           if base not in allele_to_read_record:
+               allele_to_read_record[base] = [aln.query_name]
+           else:
+               allele_to_read_record[base].append(aln.query_name)
+
+###
+pileups = samFile.pileup("NC_000011.10", 2700000, max_depth=30000)
+read_ids = []
+for pileup_col in pileups:
+    for pileup_read in pileup_col.pileups:
+        if not pileup_read.is_del and not pileup_read.is_refskip and pileup_col.pos == pos:
+            name = pileup_read.alignment.query_name
+            if name not in read_ids:
+                read_ids.append(name)
+
+>>>>>>> 1ca2c9156e38dd47fb6cb6e12e0ca1c4b54651d4
 def read_amplicon(ampltable) -> List[Amplicon]:
     """
     Read amplicon table and get list of amplicon objects
