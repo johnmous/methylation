@@ -28,6 +28,7 @@ import numpy as np
 class MethylationDFs:
     count_meth_class: pd.Series
     count_methyl_CpGs: pd.DataFrame
+    positional_methyl_pct: pd.DataFrame
 
 
 def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, allele, chrom, snp_coord, ampl_prev_thr):
@@ -60,11 +61,19 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
         methyl_pattern = read_pos_methyl.unstack()
         methyl_pattern.reset_index(inplace=True)
         methyl_pattern = methyl_pattern.sort_index(axis=1)
-        methyl_pattern = methyl_pattern.drop(labels = "Read", axis = 1)
+        methyl_pattern = methyl_pattern.drop(labels="Read", axis = 1)
         methyl_pattern.columns = methyl_pattern.columns.droplevel()
 
-        # Fill in NaN with asteriscs (NaN in the case methylation site not on all reads)
+        # Fill in NaN with asterisks (NaN in the case methylation site not on all reads)
         methyl_pattern = methyl_pattern.fillna("*")
+
+        # Count the per genomic position methylation counts
+        positional_methylated_count = count_states(methyl_pattern, "+", 0)
+        nrows = methyl_pattern.shape[0]
+        positional_methylated_pct = pd.DataFrame(positional_methylated_count/nrows).transpose()
+        # print(type(positional_methylated_pct))
+        # print(positional_methylated_pct)
+
         # Collapses identical methylation patterns together and adds  column with the count for each pattern
         collapsed_counted_patterns = methyl_pattern.groupby(
             methyl_pattern.columns.tolist()).size().reset_index().rename(columns={0:'counts'})
@@ -117,16 +126,17 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
                    "partialPcnt"])
         # Create an empty DF so the methyl_DFs can be created
         count_methyl_CpGs = pd.DataFrame()
-    methyl_DFs = MethylationDFs(count_meth_class, count_methyl_CpGs)
-
+    methyl_DFs = MethylationDFs(count_meth_class, count_methyl_CpGs, positional_methylated_pct)
     return methyl_DFs
 
-
-def count_states(meth_matrix, meth_state):
+def count_states(meth_matrix, string, axis=1):
     """
-    Count the occurrence of strings (denoting methylations states) in the table per pattern (row):
-    Returns a Series with length equal to matrix rows
+    Count the occurrence of a strings (denoting methylations states) in the table per pattern (row or column):
+    Returns a Series with length equal to matrix rows or columns
     """
-    patterns = meth_matrix.drop(labels="counts", axis=1)
-    counts = patterns.apply(func = lambda x: sum(x == meth_state), axis = 1)
+    if axis == 1:
+        patterns = meth_matrix.drop(labels="counts", axis=axis)
+        counts = patterns.apply(func=lambda x: sum(x == string), axis=axis)
+    else:
+        counts = meth_matrix.apply(func=lambda x: sum(x == string), axis=axis)
     return counts
