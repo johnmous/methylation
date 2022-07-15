@@ -334,8 +334,8 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                                                  low_mCG_thr, upper_mCG_thr,
                                                  sample_id, allele, chrom,
                                                  snp_coord, ampl_prev_thr)
-                    allele_to_counts[allele] = methyl_DFs.count_meth_class
                     data_frames_plots.append(methyl_DFs.count_methyl_CpGs)
+                    allele_to_counts[allele] = methyl_DFs.count_meth_class
                 count_methyl_CpGs = pd.concat(data_frames_plots, axis=1,
                                               join="outer", keys="methStatesCount")
                 count_methyl_CpGs.columns = count_methyl_CpGs.columns.droplevel()
@@ -352,34 +352,26 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
             index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
             df = pd.DataFrame(list_series, index=index)
 
-        # No SNP available,
+        # No SNP available
         else:
             # To improve performance, randomly select a number of records (reads) to keep with the help of pysam
             position = int(abs((end - start) / 2))  # Middle of the amplicon
             print("starting reading pileups")
-            pileups = samFile.pileup(chrom, position, max_depth=1000)
+            pileups = samFile.pileup(chrom, position, max_depth=3000)
             read_ids = []
             for pileup_col in pileups:
                 for pileup_read in pileup_col.pileups:
                     if not pileup_read.is_del and not pileup_read.is_refskip:
                         name = pileup_read.alignment.query_name
                         if name not in read_ids:
-                            print(name)
                             read_ids.append(name)
-            print("checkpoint_1")
+
             amplicon_meth = amplicon_meth[amplicon_meth["Read"].isin(read_ids)]
-            series = methyl_patterns(amplicon_meth, outpath,
-                                     low_mCG_thr, upper_mCG_thr, sample_id,
-                                     "-", chrom, "-", ampl_prev_thr)
-            print("checkpoint_2")
-            index.append((sample_id, amplicon_name, "-", "-"))
-            list_series.append(series)
-            index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
-            df = pd.DataFrame(list_series, index=index)
+
             # Plot data
+            allele_to_counts = {}
             data_frames_plots = []
             snp_coord = "-"
-            print("checkpoint_3")
             # Total column present in the DF is necessary for plotting
             for allele in ["-", "Total"]:
                 methyl_DFs = methyl_patterns(amplicon_meth, outpath,
@@ -387,11 +379,12 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                                              sample_id, allele, chrom,
                                              snp_coord, ampl_prev_thr)
                 data_frames_plots.append(methyl_DFs.count_methyl_CpGs)
+                allele_to_counts[allele] = methyl_DFs.count_meth_class
+
                 positional_meth_pct = methyl_DFs.positional_methyl_pct
                 positional_meth_pct['amplicon'] = amplicon_name
                 positional_meth_pct['allele'] = allele
                 positional_meth_pct_table_per_sample = pd.concat([positional_meth_pct_table_per_sample, positional_meth_pct])
-            print("checkpoint_4")
             count_methyl_CpGs = pd.concat(data_frames_plots, axis=1,
                                           join="outer", keys="methStatesCount")
             count_methyl_CpGs.columns = count_methyl_CpGs.columns.droplevel()
@@ -401,16 +394,14 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                                   chrom, snp_coord, low_mCG_thr,
                                   upper_mCG_thr)
             plot_data_list = [plot_data]
-            print("checkpoint_5")
-        # if amplicon_name in amplicon_to_df:
-        #    raise Exception("Amplicon name: {} is present twice. Check your ampltable and make "
-        #                    "sure amplicon names are unique".format(
-        #                    amplicon_name))
-        # amplicon_to_df[amplicon_name] = df
+            for allele, series in allele_to_counts.items():
+                index.append((sample_id, amplicon_name, f"{chrom}:{snp_coord}", allele))
+                list_series.append(series)
+            index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
+            df = pd.DataFrame(list_series, index=index)
         methylation_data = Methylation_data(amplicon_name, df)
         methyl_data_list.append(methylation_data)
     per_sample_data = Per_sample_data(methyl_data_list, plot_data_list, positional_meth_pct_table_per_sample)
-    print("Done!")
     return per_sample_data
 
 
@@ -423,7 +414,7 @@ def base_to_reads(sam_file, chr, pos):
     :param pos:
     :return: dictionary {allele => [Read IDs with this allele]}
     """
-    pileups = sam_file.pileup(chr, pos, max_depth=100)
+    pileups = sam_file.pileup(chr, pos, max_depth=3000)
 
     allele_to_read_record = {}
     for pileup_col in pileups:
