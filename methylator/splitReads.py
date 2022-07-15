@@ -225,6 +225,11 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
     plt.setp(ax.get_xticklabels(), rotation=90, ha="right",
              rotation_mode="anchor")
 
+    # Loop over data dimensions and create text annotations.
+    for i in range(positional_meth_pct_table.shape[0]):
+        for j in range(positional_meth_pct_table.shape[1]):
+            text = ax.text(j, i, int(positional_meth_pct_table.iloc[i, j]),
+                           ha="center", va="center", color="r", fontsize=2.5)
     ax.set_title("Per position % of methylated CpGs")
     fig.tight_layout()
     pdf.savefig(fig)
