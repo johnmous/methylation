@@ -201,7 +201,7 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
         pdf.close()
 
     # Plot the per position methylation percentages
-    pdf = PdfPages(f"{outpath}/plots/methylation_pct.pdf")
+    pdf = PdfPages(f"{outpath}/plots/{amplicon}_methylation_pct.pdf")
     positional_meth_pct_table = positional_meth_pct_table[positional_meth_pct_table['allele'] == "Total"]
     positional_meth_pct_table.sort_values('sample', inplace=True)
     samples = positional_meth_pct_table["sample"]
