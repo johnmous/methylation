@@ -132,8 +132,6 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
                 ampl_snp_to_plot_data[ampl_snp].append(plot_data)
 
     positional_meth_pct_table.columns.name = None
-    print(positional_meth_pct_table)
-    print(positional_meth_pct_table.columns.name)
     positional_meth_pct_table.to_csv('positional_meth_pct_table.csv')
 
     # Write tables, per amplicon
@@ -361,7 +359,7 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
         else:
             # To improve performance, randomly select a number of records (reads) to keep with the help of pysam
             position = int(abs((end - start) / 2))  # Middle of the amplicon
-            print("starting reading pileups")
+            print("start reading pileups")
             pileups = samFile.pileup(chrom, position, max_depth=3000)
             read_ids = []
             for pileup_col in pileups:

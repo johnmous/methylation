@@ -31,16 +31,28 @@ class MethylationDFs:
     positional_methyl_pct: pd.DataFrame
 
 
-def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, allele, chrom, snp_coord, ampl_prev_thr):
+def methyl_patterns(methyl_extr, out_path, low_methyl_thr, up_mCG_thr,
+                    sample_id, allele, chrom, snp_coord, ampl_prev_thr):
     """
-    Separate reads in three categories: Methylated , unmethylated, partially methylated according to the number
+    Separate reads in three categories: Methylated , unmethylated, partially
+    methylated according to the number
     of CpGs that are methyalted
-    :param methyl_extr: pandas df with columns "Read", "MethylStatus", "Chr", "Pos", "Zz". This is the output of bismark_methylation_extractor
-    :param outpath: path to save the table with the methylation patterns
-    :param: number_CGs: Number of CGs in the amplicon
-    :param methyl_thr: Integer to subtract from number_CGs to set threshold from mostly methylated
-    :param: ampl_prev_thr: amplicon prevalence threshold, a float to remove CpG sites less than this fraction of total reads
-    :return: A pandas.Series with read counts and percentages for the three methylation categories
+    :param methyl_extr: pandas df with columns "Read", "MethylStatus", "Chr",
+    "Pos", "Zz". This is the output of bismark_methylation_extractor
+    :param out_path: path to save the table with the methylation patterns
+    :param low_methyl_thr: The maximum number of methylated CpGs in a molecule
+    so it is classified as unmethylated
+    :param up_mCG_thr: The minimum number of methylated CpGs in a molecule so
+    it is classified as methylated
+    :param sample_id: name of sample processed. Used to name output files
+    :param allele: The allele in the case of a heterozygous SNP
+    :param chrom: The chromosome the amplicon resides on
+    :param snp_coord: Genomic coordinates of the SNP (if any present in
+    amplicon)
+    :param ampl_prev_thr: amplicon prevalence threshold, a float to remove CpG
+    sites present in less than this fraction of total reads
+    :return: A pandas.Series with read counts and percentages for the three
+    methylation categories
     """
 
     # if records for amplicon
@@ -51,8 +63,10 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
         read_pos_methyl = methyl_extr[["Read", "Pos", "MethylStatus"]]
         read_count = len(read_pos_methyl["Read"].unique())
 
-        # Keep only meth positions with counts in at least 15% of all reads in amplicon
-        pos_to_keep = meth_pos_counts[meth_pos_counts > read_count*ampl_prev_thr].index
+        # Keep only meth positions with counts in at least ampl_prev_thr of all
+        # reads in amplicon
+        pos_to_keep = meth_pos_counts[meth_pos_counts >
+                                      read_count*ampl_prev_thr].index
         # posToKeepCount = len(pos_to_keep)
         read_pos_methyl = read_pos_methyl[read_pos_methyl["Pos"].isin(pos_to_keep)]
 
@@ -64,32 +78,42 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
         methyl_pattern = methyl_pattern.drop(labels="Read", axis = 1)
         methyl_pattern.columns = methyl_pattern.columns.droplevel()
 
-        # Fill in NaN with asterisks (NaN in the case methylation site not on all reads)
+        # Fill in NaN with asterisks (NaN in the case methylation site not on
+        # all reads)
         methyl_pattern = methyl_pattern.fillna("*")
 
         # Count the per genomic position methylation counts
         positional_methylated_count = count_states(methyl_pattern, "+", 0)
-        nrows = methyl_pattern.shape[0]
-        positional_methylated_pct = pd.DataFrame(positional_methylated_count/nrows).transpose()
+        n_rows = methyl_pattern.shape[0]
+        positional_methylated_pct = pd.DataFrame(positional_methylated_count /
+                                                 n_rows).transpose()
         # print(type(positional_methylated_pct))
         # print(positional_methylated_pct)
 
-        # Collapses identical methylation patterns together and adds  column with the count for each pattern
+        # Collapses identical methylation patterns together and adds  column
+        # with the count for each pattern
         collapsed_counted_patterns = methyl_pattern.groupby(
-            methyl_pattern.columns.tolist()).size().reset_index().rename(columns={0:'counts'})
+            methyl_pattern.columns.tolist()).\
+            size().reset_index().rename(columns={0:'counts'})
         # totalMethPos = methyl_pattern.shape[1]
         # Count the per read methylation states and save in a separate column
-        collapsed_counted_patterns["methStatesCount"] = count_states(collapsed_counted_patterns, "+")
-        collapsed_counted_patterns["unmethStatesCount"] = count_states(collapsed_counted_patterns, "-")
-        collapsed_counted_patterns["notApplCount"] = count_states(collapsed_counted_patterns, "*")
+        collapsed_counted_patterns["methStatesCount"] = \
+            count_states(collapsed_counted_patterns, "+")
+        collapsed_counted_patterns["unmethStatesCount"] = \
+            count_states(collapsed_counted_patterns, "-")
+        collapsed_counted_patterns["notApplCount"] = \
+            count_states(collapsed_counted_patterns, "*")
 
         # Save in table
-        p = Path(outpath + "/perSample/")
+        p = Path(out_path + "/perSample/")
         p.mkdir( exist_ok=True)
-        collapsed_counted_patterns.to_csv(f"{outpath}/perSample/{sample_id}_{chrom}_{snp_coord}.{allele}.tsv", sep ="\t", header=True)
+        collapsed_counted_patterns.to_csv(f"{out_path}/perSample/{sample_id}"
+                                          f"_{chrom}_{snp_coord}.{allele}.tsv",
+                                          sep ="\t", header=True)
         count_methyl_CpGs = pd.pivot_table(collapsed_counted_patterns,
-                                    values="counts",
-                            index="methStatesCount", aggfunc=np.sum)
+                                           values="counts",
+                                           index="methStatesCount",
+                                           aggfunc=np.sum)
         count_methyl_CpGs.rename(columns = {"counts": allele}, inplace=True)
 
         # Splits the methylation patterns in 3 categories:
@@ -99,18 +123,22 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
         # Count reads in each category
         # Returns a Series
         methylated = sum(collapsed_counted_patterns[
-                             collapsed_counted_patterns["methStatesCount"] >= (upper_mCG_thr)]["counts"])
-        unmethylated = sum(collapsed_counted_patterns[collapsed_counted_patterns["methStatesCount"] <= methyl_thr]["counts"])
+                             collapsed_counted_patterns["methStatesCount"] >=
+                             (up_mCG_thr)]["counts"])
+        unmethylated = sum(collapsed_counted_patterns[
+                               collapsed_counted_patterns["methStatesCount"] <=
+                               low_methyl_thr]["counts"])
         patrially_meth = read_count - methylated - unmethylated
         methyl_pcnt = methylated / read_count
         unmethyl_pcnt = unmethylated / read_count
         partial_pcnt = patrially_meth / read_count
         count_meth_class = pd.Series(
-            [read_count, methylated, methyl_pcnt, unmethylated, unmethyl_pcnt, patrially_meth, partial_pcnt],
+            [read_count, methylated, methyl_pcnt, unmethylated, unmethyl_pcnt,
+             patrially_meth, partial_pcnt],
             index=["totalReads",
-                   f"methylated_reads(mCpGs>={upper_mCG_thr})",
+                   f"methylated_reads(mCpGs>={up_mCG_thr})",
                    "methylPcnt",
-                   f"unmethylated_reads(mCpGs<={methyl_thr})",
+                   f"unmethylated_reads(mCpGs<={low_methyl_thr})",
                    "unmethylPcnt",
                    "patriallyMeth_reads",
                    "partialPcnt"])
@@ -118,20 +146,26 @@ def methyl_patterns(methyl_extr, outpath, methyl_thr, upper_mCG_thr, sample_id, 
         count_meth_class = pd.Series(
             [0, 0, 0, 0, 0, 0, 0],
             index=["totalReads",
-                   f"methylated_reads(mCpGs>={upper_mCG_thr})",
+                   f"methylated_reads(mCpGs>={up_mCG_thr})",
                    "methylPcnt",
-                   f"unmethylated_reads(mCpGs<={methyl_thr})",
+                   f"unmethylated_reads(mCpGs<={low_methyl_thr})",
                    "unmethylPcnt",
                    "patriallyMeth_reads",
                    "partialPcnt"])
         # Create an empty DF so the methyl_DFs can be created
         count_methyl_CpGs = pd.DataFrame()
-    methyl_DFs = MethylationDFs(count_meth_class, count_methyl_CpGs, positional_methylated_pct)
+    methyl_DFs = MethylationDFs(count_meth_class, count_methyl_CpGs,
+                                positional_methylated_pct)
     return methyl_DFs
+
 
 def count_states(meth_matrix, string, axis=1):
     """
-    Count the occurrence of a strings (denoting methylations states) in the table per pattern (row or column):
+    Count the occurrence of a strings (denoting methylations states) in the
+    table per pattern (row or column)
+    :param meth_matrix: the methylation states table
+    :param string: string to count
+    :param axis: axis (rows or columns) to sum on
     Returns a Series with length equal to matrix rows or columns
     """
     if axis == 1:
