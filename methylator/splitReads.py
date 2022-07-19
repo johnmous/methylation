@@ -83,15 +83,17 @@ class Amplicon:
 @click.command()
 @click.option('--inpath', type=click.Path(exists=True, readable=True),
               required=True, help='Directory with CpG and alignment files files')
-@click.option('--thr', type=click.FLOAT, required=True, help='Threshold for '
-                                                             'allele frequency bellow which an allele is ignored')
+@click.option('--thr', type=click.FLOAT, required=True,
+              help='Threshold for allele frequency bellow which an '
+                   'allele is ignored')
 @click.option('--outpath', type=click.Path(writable=True), required=True,
               help='Path to place the output')
 @click.option('--ampltable', type=click.Path(exists=True, readable=True),
               required=True, help="Tab separated file with amplicon "
                                   "locations on genome")
-@click.option('--plotgrid', type=str, default="3;2", help='Number of '
-                                                          'plots to draw per row and column, separated with ";"')
+@click.option('--plotgrid', type=str, default="3;2",
+              help='Number of plots to draw per row and column, '
+                   'separated with ";"')
 def main(inpath, thr, outpath, ampltable, plotgrid):
     in_path = Path(inpath)
     alignment_files = list(in_path.glob("*bam"))
@@ -107,10 +109,11 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
                                      sample_id)
 
         # Positional methylation percentages
-        positional_meth_pct_table_per_sample = per_sample_data.positional_meth_pct_table_per_sample
+        positional_meth_pct_table_per_sample = per_sample_data.\
+            positional_meth_pct_table_per_sample
         positional_meth_pct_table_per_sample["sample"] = sample_id
-        positional_meth_pct_table = pd.concat([positional_meth_pct_table, positional_meth_pct_table_per_sample])
-
+        positional_meth_pct_table = pd.concat([positional_meth_pct_table,
+                                               positional_meth_pct_table_per_sample])
 
         # Put the methylation tables in a dictionary, with amplicon name as
         # key
@@ -200,10 +203,12 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
 
     # Plot the per position methylation percentages
     pdf = PdfPages(f"{outpath}/plots/{amplicon}_methylation_pct.pdf")
-    positional_meth_pct_table = positional_meth_pct_table[positional_meth_pct_table['allele'] == "Total"]
+    positional_meth_pct_table = positional_meth_pct_table[
+        positional_meth_pct_table['allele'] == "Total"]
     positional_meth_pct_table.sort_values('sample', inplace=True)
     samples = positional_meth_pct_table["sample"]
-    positional_meth_pct_table = positional_meth_pct_table.drop(["allele", "amplicon", "sample"], axis=1)
+    positional_meth_pct_table = positional_meth_pct_table.\
+        drop(["allele", "amplicon", "sample"], axis=1)
     positional_meth_pct_table = positional_meth_pct_table * 100
     positions = positional_meth_pct_table.columns
 
@@ -237,24 +242,26 @@ def main(inpath, thr, outpath, ampltable, plotgrid):
     Path(outpath + '/methylator.txt').touch()
 
 
-def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
+def per_sample(sam_file, thr, in_path, out_path, ampl_table, sample_id):
     """
     Accepts an alignment file, a methylation call file and list of amplicons
     For each amplicon, calculate a table with methylation pattern counts
-    :param samfiles:
-    :param location:
-    :param thr:
-    :param outpath:
-    :param cpgfile:
-    :param ampltable:
+    :param sam_file: Alignment file
+    :param thr: Threshold for allele frequency bellow which an allele is
+    ignored
+    :param in_path: Input path where alignment and CpG count files are
+    located
+    :param out_path: Path to store output
+    :param ampl_table: Path of table with amplicon info
+    :param sample_id: Sample name
     :return: {amplicon => methylation counts DF}
     """
 
     # Create output directory
-    if not os.path.exists(outpath):
-        os.makedirs(outpath)
-    if not os.path.exists(outpath + "/plots"):
-        os.makedirs(outpath + "/plots")
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    if not os.path.exists(out_path + "/plots"):
+        os.makedirs(out_path + "/plots")
 
     # Load methylation call data. Forward and reverse strand are in two
     # separate files (OB and OT).
@@ -265,20 +272,24 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
     if len(cpg_OB_file) == 1:
         cpg_string = str(cpg_OB_file[0])
         methylationOB = pd.read_csv(cpg_string, sep="\t", skiprows=1,
-                                    header=None, names=["Read", "MethylStatus", "Chr", "Pos", "Zz"])
+                                    header=None, names=["Read",
+                                                        "MethylStatus", "Chr",
+                                                        "Pos", "Zz"])
     else:
-        methylationOB = pd.DataFrame(columns=["Read", "MethylStatus", "Chr", "Pos", "Zz"])
+        methylationOB = pd.DataFrame(columns=["Read", "MethylStatus", "Chr",
+                                              "Pos", "Zz"])
     if len(cpg_OT_file) == 1:
         cpg_string = str(cpg_OT_file[0])
         methylationOT = pd.read_csv(cpg_string, sep="\t", skiprows=1,
-                                    header=None, names=["Read", "MethylStatus", "Chr", "Pos", "Zz"])
+                                    header=None, names=["Read", "MethylStatus",
+                                                        "Chr", "Pos", "Zz"])
         methylation = pd.concat([methylationOB, methylationOT])
     else:
         methylation = methylationOB
 
     # Read alignment file, create a dict of allele to records list
-    samFile = pysam.AlignmentFile(samfile, 'rb')
-    ampl_list = read_amplicon(ampltable)
+    samFile = pysam.AlignmentFile(sam_file, 'rb')
+    ampl_list = read_amplicon(ampl_table)
 
     methyl_data_list = []
     plot_data_list = []
@@ -333,7 +344,7 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                 # Loop over alleles, phase reads
                 for allele, records in records_to_keep.items():
                     methylation_phased = amplicon_meth[amplicon_meth["Read"].isin(records)]
-                    methyl_DFs = methyl_patterns(methylation_phased, outpath,
+                    methyl_DFs = methyl_patterns(methylation_phased, out_path,
                                                  low_mCG_thr, upper_mCG_thr,
                                                  sample_id, allele, chrom,
                                                  snp_coord, ampl_prev_thr)
@@ -352,12 +363,16 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                 for allele, series in allele_to_counts.items():
                     index.append((sample_id, amplicon_name, f"{chrom}:{snp_coord}", allele))
                     list_series.append(series)
-            index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
+            index = pd.MultiIndex.from_tuples(index, names=["Sample",
+                                                            "Amplicon",
+                                                            "SNP_coord",
+                                                            "Allele"])
             df = pd.DataFrame(list_series, index=index)
 
         # No SNP available
         else:
-            # To improve performance, randomly select a number of records (reads) to keep with the help of pysam
+            # To improve performance, randomly select a number of records
+            # (reads) to keep with the help of pysam
             position = int(abs((end - start) / 2))  # Middle of the amplicon
             print("start reading pileups")
             pileups = samFile.pileup(chrom, position, max_depth=3000)
@@ -377,7 +392,7 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
             snp_coord = "-"
             # Total column present in the DF is necessary for plotting
             for allele in ["-", "Total"]:
-                methyl_DFs = methyl_patterns(amplicon_meth, outpath,
+                methyl_DFs = methyl_patterns(amplicon_meth, out_path,
                                              low_mCG_thr, upper_mCG_thr,
                                              sample_id, allele, chrom,
                                              snp_coord, ampl_prev_thr)
@@ -387,7 +402,8 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
                 positional_meth_pct = methyl_DFs.positional_methyl_pct
                 positional_meth_pct['amplicon'] = amplicon_name
                 positional_meth_pct['allele'] = allele
-                positional_meth_pct_table_per_sample = pd.concat([positional_meth_pct_table_per_sample, positional_meth_pct])
+                positional_meth_pct_table_per_sample = pd.\
+                    concat([positional_meth_pct_table_per_sample, positional_meth_pct])
             count_methyl_CpGs = pd.concat(data_frames_plots, axis=1,
                                           join="outer", keys="methStatesCount")
             count_methyl_CpGs.columns = count_methyl_CpGs.columns.droplevel()
@@ -400,24 +416,28 @@ def per_sample(samfile, thr, in_path, outpath, ampltable, sample_id):
             for allele, series in allele_to_counts.items():
                 index.append((sample_id, amplicon_name, f"{chrom}:{snp_coord}", allele))
                 list_series.append(series)
-            index = pd.MultiIndex.from_tuples(index, names=["Sample", "Amplicon", "SNP_coord", "Allele"])
+            index = pd.MultiIndex.from_tuples(index, names=["Sample",
+                                                            "Amplicon",
+                                                            "SNP_coord",
+                                                            "Allele"])
             df = pd.DataFrame(list_series, index=index)
         methylation_data = Methylation_data(amplicon_name, df)
         methyl_data_list.append(methylation_data)
-    per_sample_data = Per_sample_data(methyl_data_list, plot_data_list, positional_meth_pct_table_per_sample)
+    per_sample_data = Per_sample_data(methyl_data_list, plot_data_list,
+                                      positional_meth_pct_table_per_sample)
     return per_sample_data
 
 
-def base_to_reads(sam_file, chr, pos):
+def base_to_reads(sam_file, chrom, pos):
     """
     For all possible alleles in a genomic position, return a dictionary {
     allele => [Read IDs with this allele]}
-    :param sam_file:
-    :param chr:
-    :param pos:
+    :param sam_file: Alignment file
+    :param chrom: Chromosome where SNP resides
+    :param pos: Genomic position of SNP
     :return: dictionary {allele => [Read IDs with this allele]}
     """
-    pileups = sam_file.pileup(chr, pos, max_depth=3000)
+    pileups = sam_file.pileup(chrom, pos, max_depth=3000)
 
     allele_to_read_record = {}
     for pileup_col in pileups:
@@ -432,16 +452,15 @@ def base_to_reads(sam_file, chr, pos):
     return (allele_to_read_record)
 
 
-def read_amplicon(ampltable) -> List[Amplicon]:
+def read_amplicon(ampl_table) -> List[Amplicon]:
     """
     Read amplicon table and get list of amplicon objects
-    :param ampltable:
-    :param methylation:
-    :return:
+    :param ampl_table: Path of table with amplicon info
+    :return: List[Amplicon]
     """
 
     # Load the amplicon table, loop over rows
-    amplicons = pd.read_csv(ampltable, sep="\t")
+    amplicons = pd.read_csv(ampl_table, sep="\t")
     amplList = []
     for index, row in amplicons.iterrows():
         name = row["Name"]
@@ -453,11 +472,8 @@ def read_amplicon(ampltable) -> List[Amplicon]:
         low_mCG_thr = row["low_mCG_thr"]
         snp_coord = str(row["snps_coord"])
         ampl_prev_thr = row["ampl_prev_thr"]
-        # row: List[things]
-        # amplication = Amplicon(*row)  <- Amplicon(row[0], row[1] .... )
-        # row: Dict[str, things]
-        # amplicon = Amplicon(**row) <- Amplicon(key=row[key], key2=row[key2]...)
-        amplicon = Amplicon(name, chrom, start, end, strand, upper_mCG_thr, low_mCG_thr, snp_coord, ampl_prev_thr)
+        amplicon = Amplicon(name, chrom, start, end, strand, upper_mCG_thr,
+                            low_mCG_thr, snp_coord, ampl_prev_thr)
         amplList.append(amplicon)
     return amplList
 
